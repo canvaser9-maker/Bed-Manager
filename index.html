@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a101d">
+<title>Bed Board — ED Bed Manager</title>
+<style>
+:root{
+  --bg:#0a101d; --panel:#111a2d; --panel2:#16213a; --line:#24324f; --text:#dfe8f6; --muted:#8798b6; --dim:#5b6b88;
+  --e1:#e5484d; --e2:#f76b15; --e3:#f2c94c; --e4:#30a46c; --e5:#3e8ed0;
+  --good:#30a46c; --fair:#f2a33a; --poor:#e5484d; --accent:#4cc3ff; --purple:#a77bf3; --dirty:#8a5a2b;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;-webkit-text-size-adjust:100%}
+body{padding-bottom:env(safe-area-inset-bottom)}
+body.has-sel{padding-bottom:150px}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:var(--mono)}
+
+/* ---------- header ---------- */
+#top{position:sticky;top:0;z-index:20;background:#0d1526ee;backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 12px}
+.brand{font-weight:700;letter-spacing:.04em;font-size:13px;color:var(--accent);text-transform:uppercase}
+.brand small{display:block;color:var(--muted);font-weight:500;letter-spacing:0;text-transform:none;font-size:11px}
+.clock{font-family:var(--mono);font-size:24px;font-weight:700;line-height:1}
+.clock small{display:block;font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.05em}
+.speeds{display:flex;gap:4px}
+.speeds button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 9px;min-width:38px;font-family:var(--mono);font-size:12px}
+.speeds button.on{background:var(--accent);color:#04121c;border-color:var(--accent);font-weight:700}
+.metrics{display:flex;flex-wrap:wrap;gap:6px;flex:1;justify-content:flex-end}
+.metric{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--muted);white-space:nowrap}
+.metric b{font-family:var(--mono);color:var(--text);font-size:13px;margin-left:3px}
+.metric.warn b{color:var(--fair)} .metric.bad b{color:var(--poor)}
+.metric.grade{border-color:var(--accent)} .metric.grade b{color:var(--accent)}
+.iconbtn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:12px}
+
+/* ---------- layout ---------- */
+#layout{display:grid;grid-template-columns:330px minmax(0,1fr);grid-template-areas:"side map" "info map";grid-template-rows:auto 1fr;gap:10px;padding:10px;max-width:1700px;margin:0 auto}
+#side{grid-area:side;scroll-margin-top:120px} .room{scroll-margin-top:120px} #map{grid-area:map} #info{grid-area:info}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+.panel h2,.area h2{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px}
+.panel h2 .count,.area h2 .count{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:0 7px;font-family:var(--mono);font-size:11px}
+.panel h2 .hint,.area h2 .hint{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;color:var(--dim);font-size:10px}
+.qsec + .qsec{margin-top:10px}
+.qlist{display:flex;flex-direction:column;gap:4px}
+.qempty{color:var(--dim);font-size:12px;padding:4px 2px}
+
+.qrow{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:6px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:6px;padding:5px 7px;text-align:left;width:100%}
+.qrow .nm{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .tm{font-family:var(--mono);font-size:12px;text-align:right}
+.qrow .tm small{display:block;font-size:9px;color:var(--dim);letter-spacing:.04em}
+.qrow.sel{outline:2px solid var(--accent);outline-offset:1px}
+.qrow.l1{border-left-color:var(--e1)} .qrow.l2{border-left-color:var(--e2)} .qrow.l3{border-left-color:var(--e3)} .qrow.l4{border-left-color:var(--e4)} .qrow.l5{border-left-color:var(--e5)}
+.tm.late{color:var(--fair)} .tm.vlate{color:var(--poor);font-weight:700}
+
+.esi{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;font-family:var(--mono);font-weight:800;font-size:12px;color:#fff;flex:none}
+.e1{background:var(--e1)} .e2{background:var(--e2)} .e3{background:var(--e3);color:#1b1500} .e4{background:var(--e4)} .e5{background:var(--e5)}
+.flag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:3px;padding:1px 3px;margin-left:3px;vertical-align:1px;background:#2a3858;color:#cfe0ff}
+.flag.ems{background:#5a1f22;color:#ffc9cb} .flag.peds{background:#1f4a5a;color:#bff0ff} .flag.bh{background:#3d2a5c;color:#e3d2ff}
+.flag.tr{background:#6b1f1f;color:#ffd0d0} .flag.vip{background:#5c4a12;color:#ffe9a8}
+.flag.red{background:var(--e1);color:#fff} .flag.yel{background:var(--e3);color:#1b1500} .flag.grn{background:var(--e4);color:#fff}
+
+/* ---------- map ---------- */
+#map{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.3fr) minmax(0,1.3fr);
+  grid-template-areas:"trauma podA podB" "peds hall hall" "bh fast obs" "surge surge surge";gap:10px;align-content:start}
+.area{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;min-width:0}
+.area[data-a=trauma]{grid-area:trauma} .area[data-a=podA]{grid-area:podA} .area[data-a=podB]{grid-area:podB}
+.area[data-a=hall]{grid-area:hall} .area[data-a=fast]{grid-area:fast} .area[data-a=peds]{grid-area:peds}
+.area[data-a=bh]{grid-area:bh} .area[data-a=obs]{grid-area:obs} .area[data-a=surge]{grid-area:surge}
+.area[data-a=hall]{background:repeating-linear-gradient(90deg,var(--panel) 0 22px,#121c31 22px 24px)}
+.area.surgeOn{border-color:var(--fair)}
+.rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
+.area[data-a=trauma] .rooms{grid-template-columns:1fr}
+.pod{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.station{display:grid;place-items:center;text-align:center;border:1px dashed var(--line);border-radius:8px;color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:4px;background:radial-gradient(circle,#18243f,transparent 70%)}
+.station b{display:block;color:var(--muted);font-size:11px}
+
+.room{position:relative;min-height:88px;border-radius:8px;border:1px solid var(--line);background:#0e1628;padding:5px 6px 5px 8px;text-align:left;
+  display:flex;flex-direction:column;gap:2px;overflow:hidden;min-width:0;width:100%;font-size:11px;line-height:1.25}
+.room::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--line)}
+.room.esi1::before{background:var(--e1)} .room.esi2::before{background:var(--e2)} .room.esi3::before{background:var(--e3)} .room.esi4::before{background:var(--e4)} .room.esi5::before{background:var(--e5)}
+.area[data-a=trauma] .room{min-height:96px}
+.rh{display:flex;align-items:center;gap:4px;min-width:0}
+.rid{font-family:var(--mono);font-weight:800;font-size:12px;color:#fff}
+.rh .esi{width:17px;height:17px;font-size:11px}
+.los{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.los.late{color:var(--fair)} .los.vlate{color:var(--poor);font-weight:700}
+.pn{font-weight:700;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pn .as{color:var(--muted);font-weight:500}
+.cc{color:#b9c6dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{margin-top:auto;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.st.s-need{color:#ffb3b5} .st.s-md{color:var(--accent)} .st.s-tests{color:var(--e3)} .st.s-res{color:#7ff0e0}
+.st.s-dc{color:#6fe39b} .st.s-adm{color:var(--purple)} .st.s-obs{color:#f0a3ff}
+.prog{display:flex;gap:2px;margin-top:2px}
+.prog i{flex:1;height:3px;border-radius:2px;background:#26334f}
+.prog i.on{background:var(--accent)}
+.prog.dispo-dc i.on{background:var(--good)} .prog.dispo-adm i.on{background:var(--purple)} .prog.dispo-obs i.on{background:#e07cf0}
+
+.room.empty .big{margin:auto 0;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.05em}
+.room.clean .big{color:#5fd59a}
+.room.dirty{background:repeating-linear-gradient(135deg,#1e1710 0 8px,#241b12 8px 16px);border-color:#4d3519}
+.room.dirty .big{color:#e0a060}
+.room.dirty.req{border-color:#8a6a2b}
+.room.cleaning{background:#121d2a;border-color:#2b5470}
+.room.cleaning .big{color:#7cc8ef}
+.room.closed{opacity:.45}
+.room.rsv{border-style:dashed;border-color:var(--accent)}
+.room .sub2{color:var(--muted);font-size:10px}
+.bar{height:4px;border-radius:2px;background:#22324d;overflow:hidden}
+.bar i{display:block;height:100%;background:#7cc8ef}
+.room.warnfit{box-shadow:inset 0 0 0 1px var(--poor)}
+.room.warnfit .fitwarn{color:var(--poor);font-weight:800}
+.room.selected{outline:2px solid var(--accent);outline-offset:1px}
+.room.dimmed{opacity:.35}
+.room.fit-good{box-shadow:0 0 0 2px var(--good);background:#0f2a1d}
+.room.fit-fair{box-shadow:0 0 0 2px var(--fair);background:#2a2110}
+.room.fit-poor{box-shadow:0 0 0 2px var(--poor);background:#2b1214}
+.room.fit-no{opacity:.3}
+.fittag{font-size:10px;font-weight:700}
+.fit-good .fittag{color:#7fe8ad} .fit-fair .fittag{color:#ffc56b} .fit-poor .fittag{color:#ff8f92}
+.zone-target{outline:2px dashed var(--good);outline-offset:2px}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #e5484d00}50%{box-shadow:0 0 0 3px #e5484daa}}
+.room.alarm,.qrow.alarm{animation:pulse 1.2s infinite}
+
+/* ---------- info ---------- */
+.staff{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.staff .s{display:flex;gap:6px;align-items:baseline;justify-content:space-between;background:var(--panel2);border-radius:6px;padding:4px 7px}
+.staff .s b{font-weight:600} .staff .s span{color:var(--muted);font-size:11px;text-align:right}
+.staff .s.off{opacity:.45}
+#log{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow:auto;font-size:11.5px}
+#log div{padding:2px 4px;border-radius:4px;color:#b8c5da}
+#log div time{font-family:var(--mono);color:var(--dim);margin-right:6px}
+#log .good{color:#8de3b0} #log .warn{color:#ffcf80} #log .bad{color:#ff9fa1;background:#2a1315}
+
+/* ---------- selection bar ---------- */
+#selbar{position:fixed;left:0;right:0;bottom:0;z-index:25;background:#0f1a30f5;border-top:2px solid var(--accent);padding:8px 12px calc(8px + env(safe-area-inset-bottom));display:none;backdrop-filter:blur(6px)}
+#selbar.on{display:block}
+.selin{max-width:1100px;margin:0 auto;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.selpt{display:flex;gap:8px;align-items:center;min-width:0;flex:1 1 260px}
+.selpt .t{min-width:0}
+.selpt .t b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.selpt .t > span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.selhint{font-size:12px;color:#cfe3ff;flex:1 1 260px}
+.selhint .w{color:#ffc56b}
+.selacts{display:flex;gap:6px;flex-wrap:wrap}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:13px;font-weight:600}
+.btn.pri{background:var(--accent);color:#04121c;border-color:var(--accent)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* ---------- toasts ---------- */
+#toasts{position:fixed;bottom:14px;right:14px;z-index:40;display:flex;flex-direction:column;gap:6px;max-width:min(360px,calc(100vw - 20px));pointer-events:none}
+.toast{background:#18243f;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:8px 10px;font-size:12.5px;box-shadow:0 6px 20px #0008;animation:tin .2s ease-out}
+.toast.good{border-left-color:var(--good)} .toast.warn{border-left-color:var(--fair)} .toast.bad{border-left-color:var(--poor);background:#2a1418}
+@keyframes tin{from{transform:translateY(6px);opacity:0}}
+body.has-sel #toasts{bottom:120px}
+
+/* ---------- modal ---------- */
+#modal{position:fixed;inset:0;z-index:50;background:#03070fcc;display:grid;place-items:center;padding:14px;overflow:auto}
+#modal[hidden]{display:none}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:560px;width:100%;padding:18px;box-shadow:0 20px 60px #000a}
+.card.wide{max-width:720px}
+.card .tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:800}
+.card.mci{border-color:var(--poor)} .card.mci .tag{color:var(--poor)}
+.card h3{margin:4px 0 8px;font-size:20px}
+.card p{color:#c3cfe3;line-height:1.5;margin:0 0 10px}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.opt{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:left}
+.opt b{display:block;font-size:14px}
+.opt span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.opt:hover{border-color:var(--accent)}
+.opt.tog.on{border-color:var(--good);background:#11291d}
+.opt.tog b::before{content:"☐ ";color:var(--muted)} .opt.tog.on b::before{content:"☑ ";color:var(--good)}
+.diffs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.diffs .opt.on{border-color:var(--accent);background:#10253a}
+.how{margin:0;padding-left:18px;color:#c3cfe3;line-height:1.55;font-size:13px}
+.how li{margin:2px 0}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;font-size:11px;color:var(--muted);align-items:center}
+.gradebig{display:flex;align-items:center;gap:16px;margin:6px 0 12px}
+.gradebig .g{font-size:64px;font-weight:900;font-family:var(--mono);line-height:1;color:var(--accent)}
+.gradebig .sc{font-size:14px;color:var(--muted)}
+.gradebig .sc b{font-size:22px;color:var(--text);display:block}
+table.bd{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+table.bd td{padding:5px 4px;border-bottom:1px solid var(--line)}
+table.bd td:last-child{text-align:right;font-family:var(--mono);white-space:nowrap}
+table.bd tr.neg td:last-child{color:#ff9fa1} table.bd tr.pos td:last-child{color:#8de3b0}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;margin:8px 0}
+.statgrid div{background:var(--panel2);border-radius:8px;padding:6px 8px;font-size:11px;color:var(--muted)}
+.statgrid div b{display:block;font-size:17px;color:var(--text);font-family:var(--mono)}
+.notes{font-size:12.5px;color:#c3cfe3;padding-left:18px;margin:6px 0}
+
+/* ---------- responsive ---------- */
+@media (max-width:1100px){
+  #layout{grid-template-columns:290px minmax(0,1fr)}
+  #map{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"trauma trauma" "podA podB" "hall hall" "peds bh" "fast obs" "surge surge"}
+  .area[data-a=trauma] .rooms{grid-template-columns:1fr 1fr}
+}
+@media (max-width:820px){
+  #layout{grid-template-columns:minmax(0,1fr);grid-template-areas:"side" "map" "info";padding:8px;gap:8px}
+  #map{grid-template-columns:minmax(0,1fr);grid-template-areas:"trauma" "podA" "podB" "hall" "peds" "bh" "fast" "obs" "surge"}
+  .metrics{justify-content:flex-start;order:5;flex-basis:100%}
+  #toasts{bottom:10px;left:10px;right:10px;max-width:none}
+  body.has-sel #toasts{bottom:150px}
+  .toast{padding:6px 9px;font-size:12px}
+  #top{padding:6px 10px;gap:6px 10px}
+  .metrics{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .metrics::-webkit-scrollbar{display:none}
+  .iconbtn .lbl{display:none}
+  .clock{font-size:20px}
+  .qlist{max-height:none}
+}
+@media (max-width:420px){
+  .rooms{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .room{font-size:10.5px}
+  .diffs{grid-template-columns:1fr}
+  .brand small{display:none}
+}
+</style>
+</head>
+<body>
+<header id="top">
+  <div class="brand">Bed Board<small>ED bed manager · day shift</small></div>
+  <div class="clock" id="clock">07:00<small id="clocksub">SHIFT 07–19</small></div>
+  <div class="speeds" id="speeds">
+    <button data-speed="0" title="Pause (Space)">❚❚</button>
+    <button data-speed="1" title="Normal (1)">1×</button>
+    <button data-speed="2" title="Fast (2)">2×</button>
+    <button data-speed="4" title="Faster (3)">4×</button>
+  </div>
+  <button class="iconbtn" data-act="help" title="How to play">?<span class="lbl"> Help</span></button>
+  <div class="metrics" id="metrics"></div>
+</header>
+
+<main id="layout">
+  <section id="side"></section>
+  <section id="map"></section>
+  <section id="info">
+    <div class="panel" style="margin-bottom:10px"><h2>Staff on duty</h2><div class="staff" id="staff"></div></div>
+    <div class="panel"><h2>Shift log</h2><div id="log"></div></div>
+  </section>
+</main>
+
+<div id="selbar"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="modal" hidden></div>
+
+<script>
+'use strict';
+/* ================= helpers ================= */
+const $ = s => document.querySelector(s);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const ri = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const chance = p => Math.random() < p;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SHIFT_START = 7 * 60, SHIFT_END = 19 * 60;
+const fmtClock = t => String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+const fmtDur = m => { m = Math.max(0, Math.round(m)); const h = Math.floor(m / 60); return h ? h + 'h' + String(m % 60).padStart(2, '0') : m + 'm'; };
+
+/* ================= static data ================= */
+const AREAS = [
+  {id:'trauma', name:'Trauma / Resus', type:'trauma', rooms:['T1','T2'], hint:'Critical & major trauma'},
+  {id:'podA', name:'Pod A', type:'acute', pod:true, rooms:['A1','A2','A3','A4','A5','A6','A7','A8'], hint:'Monitored'},
+  {id:'podB', name:'Pod B', type:'acute', pod:true, rooms:['B1','B2','B3','B4','B5','B6','B7','B8'], hint:'Monitored'},
+  {id:'hall', name:'Hallway Beds', type:'hall', rooms:['H1','H2','H3','H4','H5'], hint:'Unmonitored, no privacy'},
+  {id:'fast', name:'Fast Track', type:'fast', rooms:['F1','F2','F3','F4','F5'], hint:'ESI 4–5 · PA-staffed'},
+  {id:'peds', name:'Pediatrics', type:'peds', rooms:['P1','P2','P3','P4'], hint:'Under 18'},
+  {id:'bh', name:'Behavioral Health', type:'bh', rooms:['BH1','BH2','BH3'], hint:'Ligature-safe'},
+  {id:'obs', name:'Observation Unit', type:'obs', rooms:['O1','O2','O3','O4'], hint:'Obs dispositions only'},
+  {id:'surge', name:'Surge Spaces', type:'surge', rooms:['S1','S2','S3','S4','S5','S6'], hint:'Opened for MCI', hidden:true},
+];
+const LAST = ['Garcia','Nguyen','Smith','Johnson','Williams','Brown','Jones','Miller','Davis','Rodriguez','Martinez','Hernandez','Lopez','Wilson','Anderson','Thomas','Taylor','Moore','Jackson','Martin','Lee','Thompson','White','Harris','Clark','Lewis','Robinson','Walker','Young','Allen','King','Wright','Scott','Torres','Hill','Green','Adams','Baker','Nelson','Carter','Mitchell','Perez','Roberts','Turner','Phillips','Campbell','Parker','Evans','Edwards','Collins','Stewart','Morris','Murphy','Cook','Rogers','Kowalski','Haddad','Cohen','Kim','Chen','Singh','Novak','Ali','Sato','Reyes','Brooks','Price','Bennett','Wood','Ross','Foster','Gray','James','Hughes','Ward','Diaz','Flores','Long','Mensah','Ivanova','Okeke','Larsen','Duarte','Fischer'];
+const FIRST_M = ['James','Robert','Luis','Michael','David','Kevin','Omar','Daniel','Tom','Andre','Marcus','Wei','Raj','Paul','Sam','Ethan','Noah','Hector','Frank','Gary','Tyrone','Ivan','Ben','Carlos'];
+const FIRST_F = ['Maria','Linda','Susan','Aisha','Emily','Grace','Rosa','Mei','Priya','Karen','Sofia','Jasmine','Ruth','Dana','Olivia','Ava','Lena','Fatima','Nora','Carmen','Joan','Tanya','Hannah','Elena'];
+// chief complaints: [text, flags]
+const CC = {
+  adult: {
+    1:[['Cardiac arrest'],['STEMI'],['Unresponsive'],['Respiratory failure'],['Septic shock'],['GSW to abdomen','T'],['MVC rollover','T'],['Fall from 20 ft','T'],['Massive GI bleed']],
+    2:[['Chest pain'],['Stroke symptoms'],['COPD, short of breath'],['Altered mental status'],['GI bleed'],['Sepsis alert'],['Syncope'],['DKA'],['Head injury on blood thinners','T'],['Stab wound, arm','T'],['Afib with RVR'],['Hip fracture, fall','T']],
+    3:[['Abdominal pain'],['Fever, weakness'],['Back pain + fever'],['Pneumonia symptoms'],['Vomiting, dehydrated'],['Flank pain'],['Fall, hip pain'],['Headache'],['Generalized weakness'],['Cellulitis'],['Kidney stone'],['Asthma flare'],['Dizziness']],
+    4:[['Ankle injury'],['Laceration, hand'],['UTI symptoms'],['Sore throat'],['Ear pain'],['Rash'],['Wrist injury'],['Back strain'],['Toothache'],['Eye irritation']],
+    5:[['Medication refill'],['Cold symptoms'],['Suture removal'],['Work note'],['Insect bite'],['Rash, 2 weeks']],
+  },
+  peds: {
+    1:[['Infant not breathing'],['Status seizure'],['Pedestrian struck','T']],
+    2:[['Febrile infant'],['Asthma, severe'],['Febrile seizure'],['Croup, stridor'],['Head injury, vomiting','T']],
+    3:[['Vomiting, dehydrated'],['Abdominal pain'],['Asthma flare'],['Fever, lethargic'],['Arm deformity','T']],
+    4:[['Ear pain'],['Arm injury'],['Laceration, chin'],['Sore throat'],['Rash']],
+    5:[['Cold symptoms'],['Insect bite'],['School note']],
+  },
+  psych: {
+    2:[['Suicidal ideation'],['Agitated, combative'],['Overdose, intentional']],
+    3:[['Psychosis'],['Intoxicated, unsafe'],['Depression, unable to care for self'],['Anxiety, homicidal thoughts']],
+  }
+};
+const DIFFS = {
+  quiet:  {name:'Quiet Tuesday', mult:0.78, mci:0.2, bed:0.85, desc:'Steadier arrivals, kinder inpatient beds.'},
+  typical:{name:'Typical Day',  mult:1.0,  mci:0.35, bed:1.0, desc:'A normal busy ED. Boarders happen.'},
+  busy:   {name:'Full Moon',    mult:1.22, mci:0.7, bed:1.18, desc:'Packed waiting room, slow beds upstairs.'},
+};
+
+/* ================= state ================= */
+let S = null;
+const P = id => S.pts.find(p => p.id === id);
+const R = id => S.rooms[id];
+
+function newGame(diffKey) {
+  const diff = DIFFS[diffKey] || DIFFS.typical;
+  S = {
+    t: SHIFT_START, speed: 0, acc: 0, diffKey, diff, pid: 0,
+    rooms: {}, pts: [], sel: null, log: [], mods: [], surge: false, ended: false, modal: null,
+    docs: [
+      {name:'Dr. Alvarez', short:'ALV', start:SHIFT_START, end:SHIFT_END, busy:0, pt:null, task:null},
+      {name:'Dr. Brennan', short:'BRE', start:SHIFT_START, end:SHIFT_END, busy:0, pt:null, task:null},
+      {name:'Dr. Osei (swing)', short:'OSE', start:11*60, end:23*60, busy:0, pt:null, task:null},
+      {name:'R. Rivera, PA', short:'RIV', start:SHIFT_START, end:SHIFT_END, busy:0, pt:null, task:null, app:true},
+    ],
+    evsQ: [], nextDecision: SHIFT_START + ri(55, 80), usedDecisions: new Set(),
+    mciAt: chance(diff.mci) ? ri(10*60, 15*60+30) : null, mciDone: false,
+    st: {arrivals:0, seen:0, dc:0, admit:0, transfer:0, obsIn:0, lwbs:0, elope:0, adverse:0, safety:0, complaints:0,
+         emsDelay:0, resusBlocked:0, d2p:[], losDc:[], boardMin:0, poorMin:0, budget:0, divMin:0, bypass:0, transferAccepted:0,
+         mciPts:0, mciAdverse:0, decisions:[], moments:[]},
+  };
+  for (const a of AREAS) for (const id of a.rooms) S.rooms[id] = {id, area:a.id, type:a.type, state:'clean', pt:null, rsv:null, req:false, timer:0, closedUntil:0};
+  seedBoard();
+}
+
+/* ================= patients ================= */
+function genPatient(mode, o = {}) {
+  let kind = o.kind;
+  if (!kind) { const r = Math.random(); kind = r < (mode === 'walk' ? 0.15 : 0.07) ? 'peds' : r < (mode === 'walk' ? 0.22 : 0.14) ? 'psych' : 'adult'; }
+  let esi = o.esi;
+  if (!esi) {
+    const dist = mode === 'walk' ? [0.01, 0.12, 0.42, 0.33, 0.12] : [0.07, 0.32, 0.45, 0.14, 0.02];
+    let r = Math.random(); esi = 1; for (let i = 0; i < 5; i++) { if (r < dist[i]) { esi = i + 1; break; } r -= dist[i]; esi = i + 2; }
+    esi = clamp(esi, 1, 5);
+    if (kind === 'psych') esi = chance(0.4) ? 2 : 3;
+  }
+  const pool = CC[kind][esi] || CC[kind][3] || CC.adult[esi];
+  const [cc, fl] = o.cc ? [o.cc, o.trauma ? 'T' : ''] : pick(pool);
+  const sex = chance(0.5) ? 'F' : 'M';
+  let age;
+  if (kind === 'peds') age = pick([0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16, 17]);
+  else if (kind === 'psych') age = ri(19, 62);
+  else age = esi <= 2 ? ri(38, 92) : ri(19, 84);
+  const p = {
+    id: ++S.pid, mode, kind, esi, cc, age, sex, trauma: fl === 'T', psych: kind === 'psych', peds: kind === 'peds',
+    first: pick(sex === 'F' ? FIRST_F : FIRST_M), last: pick(LAST),
+    arrive: S.t, emsAt: null, loc: mode === 'walk' ? 'waiting' : 'incoming', room: null, rsv: null, phase: 'arrived',
+    timer: 0, tests: [], md: null, seenAt: null, roomedAt: null, resAt: null, dispo: null, dispoAt: null, unit: null,
+    complained: false, lastAdverse: -999, sitter: false, calm: false, vip: false, mci: o.mci || null, handoffRisk: false,
+  };
+  return p;
+}
+function setAgeLabel(p) { p.ageLabel = p.age === 0 ? ri(2, 11) + 'mo ' + p.sex : p.age + p.sex; }
+
+function addWalkIn(o) {
+  const p = genPatient('walk', o); setAgeLabel(p);
+  S.pts.push(p); S.st.arrivals++;
+  log(`Walk-in: ${p.ageLabel} ${p.cc} — triaged ESI ${p.esi}`, p.esi <= 2 ? 'warn' : 'info');
+  if (p.esi <= 2) toast(`Triage: ESI ${p.esi} in the waiting room — ${p.ageLabel} ${p.cc}`, 'warn');
+  return p;
+}
+function radioEMS(o = {}, eta) {
+  const p = genPatient(o.mci ? 'mci' : 'ems', o); setAgeLabel(p);
+  p.eta = S.t + (eta ?? ri(6, 14));
+  S.pts.push(p);
+  if (!o.mci) {
+    log(`EMS radio: ${p.ageLabel} ${p.cc}, ESI ${p.esi}, ETA ${p.eta - S.t}m`, p.esi <= 2 ? 'warn' : 'info');
+    if (p.esi <= 2) toast(`🚑 EMS radio: ${p.ageLabel} ${p.cc} (ESI ${p.esi}), ETA ${p.eta - S.t} min`, p.esi === 1 ? 'bad' : 'warn');
+  }
+  return p;
+}
+function emsArrive(p) {
+  p.arrive = S.t; p.emsAt = S.t; S.st.arrivals++; if (p.mci) S.st.mciPts++;
+  if ((p.esi === 1 || p.trauma && p.esi <= 2) && !p.rsv) {
+    const bays = ['T1', 'T2'].map(R);
+    const free = bays.some(r => r.state === 'clean' && !r.pt && !r.rsv);
+    const blocked = bays.some(r => r.pt && P(r.pt) && P(r.pt).esi >= 3);
+    if (!free && blocked) { S.st.resusBlocked++; log(`Resus bays full of low-acuity patients when a critical patient arrived`, 'bad'); moment('Critical arrival found both resus bays blocked'); }
+  }
+  if (p.rsv && R(p.rsv) && R(p.rsv).rsv === p.id && R(p.rsv).state === 'clean' && !R(p.rsv).pt) {
+    const r = R(p.rsv); r.rsv = null; p.rsv = null; p.loc = 'ems'; placeInRoom(p, r);
+    log(`EMS arrived: ${name(p)} straight to ${r.id} (pre-assigned)`, 'good');
+  } else {
+    if (p.rsv && R(p.rsv)) R(p.rsv).rsv = null;
+    p.rsv = null; p.loc = 'ems';
+    log(`EMS arrived: ${name(p)} ${p.cc} — on the stretcher, needs a bed`, p.esi <= 2 ? 'warn' : 'info');
+    if (p.esi <= 2 && !p.mci) toast(`🚑 ${name(p)} (ESI ${p.esi}) is on the EMS stretcher — needs a room`, p.esi === 1 ? 'bad' : 'warn');
+  }
+}
+const name = p => `${p.last}, ${p.first[0]}`;
+
+function seedBoard() {
+  const put = (roomId, o, setup) => {
+    const p = genPatient(o.mode || 'walk', {kind:'adult', ...o}); setAgeLabel(p);
+    p.arrive = S.t - (o.ago || ri(60, 240)); p.seenAt = p.arrive + ri(15, 45); p.roomedAt = p.arrive + 10;
+    p.md = pick(['ALV', 'BRE', 'NGT']); S.pts.push(p);
+    if (roomId) { const r = R(roomId); r.pt = p.id; r.state = 'occ'; p.loc = 'room'; p.room = roomId; }
+    setup(p); return p;
+  };
+  put('A2', {esi:2, ago:380}, p => { p.phase = 'admit'; p.dispo = 'admit'; p.unit = 'Tele'; p.timer = ri(30, 80); p.dispoAt = S.t - 120; });
+  put('B5', {esi:2, ago:520}, p => { p.phase = 'admit'; p.dispo = 'admit'; p.unit = 'Med'; p.timer = ri(120, 220); p.dispoAt = S.t - 300; });
+  put('H1', {esi:3, ago:640}, p => { p.phase = 'admit'; p.dispo = 'admit'; p.unit = 'Med'; p.timer = ri(160, 260); p.dispoAt = S.t - 400; });
+  put('O1', {esi:3, ago:600}, p => { p.phase = 'inObs'; p.dispo = 'obs'; p.timer = ri(50, 120); });
+  put('O2', {esi:3, ago:420}, p => { p.phase = 'inObs'; p.dispo = 'obs'; p.timer = ri(180, 280); });
+  put('A5', {esi:3, ago:110}, p => { p.phase = 'tests'; p.tests = ['LAB', 'CT']; p.timer = ri(15, 35); });
+  put('B1', {esi:3, ago:190}, p => { p.phase = 'results'; p.resAt = S.t - 5; });
+  put('B3', {esi:2, ago:80, mode:'ems'}, p => { p.phase = 'tests'; p.tests = ['LAB', 'XR']; p.timer = ri(20, 45); });
+  put('A6', {esi:3, ago:35}, p => { p.phase = 'awaitMD'; p.seenAt = null; p.md = null; p.roomedAt = S.t - 12; });
+  put('F2', {esi:4, ago:75}, p => { p.phase = 'dc'; p.dispo = 'dc'; p.timer = ri(5, 15); });
+  put('F4', {esi:4, ago:40}, p => { p.phase = 'tests'; p.tests = ['XR']; p.timer = ri(10, 25); });
+  put('P2', {esi:3, kind:'peds', ago:95}, p => { p.phase = 'tests'; p.tests = ['UA']; p.timer = ri(15, 30); });
+  put('BH1', {esi:3, kind:'psych', ago:300}, p => { p.phase = 'consult'; p.tests = []; p.timer = ri(40, 90); });
+  put('BH2', {esi:2, kind:'psych', ago:900}, p => { p.phase = 'admit'; p.dispo = 'transfer'; p.unit = 'Psych facility'; p.timer = ri(200, 380); });
+  for (const id of ['T1', 'A7', 'O4', 'H3']) { R(id).state = 'dirty'; }
+  // waiting room & stretcher
+  for (const [esi, ago] of [[3, 38], [4, 26], [3, 12], [5, 8]]) { const p = genPatient('walk', {esi, kind:'adult'}); setAgeLabel(p); p.arrive = S.t - ago; S.pts.push(p); }
+  const e = genPatient('ems', {esi:3, kind:'adult'}); setAgeLabel(e); e.arrive = e.emsAt = S.t - 9; e.loc = 'ems'; S.pts.push(e);
+  radioEMS({esi:2, kind:'adult', cc:'Chest pain'}, 7);
+  log('Report from the night charge nurse: 14 patients in rooms, 4 in the waiting room, 1 on an EMS stretcher, 4 rooms dirty.', 'info');
+}
+
+/* ================= placement fit ================= */
+function fitType(p, type) {
+  if (type === 'obs') return p.phase === 'obs' || p.phase === 'inObs' ? {lvl:'good', why:'Observation bed'} : {lvl:'no', why:'Obs unit only accepts patients the doctor has placed in observation'};
+  if (type === 'fast' && modOn('ftAcute')) type = 'acute';
+  const e = p.esi, kid = p.peds, psy = p.psych;
+  const settled = ['dc', 'transport'].includes(p.phase);
+  switch (type) {
+    case 'trauma':
+      if (e === 1) return {lvl:'good', why:'Resus bay'};
+      if (e === 2) return {lvl:p.trauma ? 'good' : 'fair', why:p.trauma ? 'Trauma bay' : 'OK, but ties up a resus bay', risk:null};
+      return {lvl:'poor', why:'Low-acuity patient blocking a resus bay', risk:'resus'};
+    case 'acute':
+      if (psy) return {lvl:'fair', why:'Not ligature-safe — needs a sitter', risk:'psych'};
+      if (e === 1 && p.trauma) return {lvl:'fair', why:'Major trauma belongs in a resus bay'};
+      if (e === 1) return {lvl:'fair', why:'Critical — resus bay preferred'};
+      if (kid) return {lvl:'fair', why:'Child in an adult room', risk:'complaint'};
+      if (e >= 4) return {lvl:'fair', why:'Monitored bed used for a minor complaint'};
+      return {lvl:'good', why:'Monitored acute room'};
+    case 'hall': case 'surge':
+      if (e <= 2 && !settled) return {lvl:'poor', why:'Unmonitored hallway — unsafe for this acuity', risk:'det'};
+      if (psy) return {lvl:'poor', why:'Psych patient in an open hallway', risk:'psych'};
+      if (kid) return {lvl:'fair', why:'Child in an adult hallway', risk:'complaint'};
+      if (e === 3) return {lvl:'fair', why:'Hallway OK for a stable ESI 3', risk:'complaint'};
+      return {lvl:'good', why:'Hallway bed fine for low acuity', risk:'complaint'};
+    case 'fast':
+      if (e <= 2 && !settled) return {lvl:'poor', why:'Fast track has no monitors', risk:'det'};
+      if (psy) return {lvl:'poor', why:'Psych patient in fast track', risk:'psych'};
+      if (e === 3) return {lvl:'fair', why:'ESI 3 may be too sick for fast track'};
+      return {lvl:'good', why:'Fast track'};
+    case 'peds':
+      if (!kid) return {lvl:'poor', why:'Adult in the pediatric area', risk:'complaint'};
+      if (e === 1) return {lvl:'fair', why:'Critical child — resus bay preferred'};
+      return {lvl:'good', why:'Pediatric room'};
+    case 'bh':
+      if (psy) return {lvl:'good', why:'Safe room'};
+      if (e <= 3) return {lvl:'poor', why:'BH rooms have no monitors or equipment', risk:'det'};
+      return {lvl:'fair', why:'BH room used for a medical patient'};
+  }
+  return {lvl:'fair', why:''};
+}
+function fit(p, room) {
+  if (room.closedUntil > S.t && room.pt !== p.id) return {lvl:'no', why:'Room closed (no nurse)'};
+  return fitType(p, room.type);
+}
+const canResultsWait = p => p.seenAt != null && p.esi >= 3 && !p.psych && !['eval', 'reval', 'inObs'].includes(p.phase) && p.loc === 'room' && p.age >= 1;
+
+/* ================= movement ================= */
+function vacate(p) {
+  if (p.loc === 'room' && p.room) {
+    const r = R(p.room);
+    if (r && r.pt === p.id) { r.pt = null; r.state = 'dirty'; r.req = false; }
+  }
+  p.room = null;
+}
+function placeInRoom(p, r) {
+  vacate(p);
+  r.pt = p.id; r.state = 'occ'; r.rsv = null;
+  p.loc = 'room'; p.room = r.id;
+  if (p.phase === 'arrived') { p.phase = 'awaitMD'; p.roomedAt = S.t; }
+  if (r.type === 'obs' && p.phase === 'obs') { p.phase = 'inObs'; p.timer = ri(200, 380); S.st.obsIn++; log(`${name(p)} moved to observation (${r.id})`, 'good'); }
+}
+function depart(p, how) {
+  vacate(p);
+  if (p.rsv && R(p.rsv)) R(p.rsv).rsv = null;
+  S.pts = S.pts.filter(x => x !== p);
+  if (S.sel === p.id) S.sel = null;
+  for (const d of S.docs) if (d.pt === p.id) { d.pt = null; d.busy = 0; d.task = null; }
+  const los = S.t - p.arrive;
+  switch (how) {
+    case 'dc': S.st.dc++; S.st.losDc.push(los); log(`${name(p)} discharged home (LOS ${fmtDur(los)})`, 'good'); break;
+    case 'obsdc': S.st.dc++; log(`${name(p)} discharged from obs`, 'good'); break;
+    case 'admit':
+      if (p.dispo === 'transfer') { S.st.transfer++; log(`${name(p)} transferred to ${p.unit}`, 'good'); }
+      else { S.st.admit++; log(`${name(p)} went up to ${p.unit}`, 'good'); }
+      if (p.handoffRisk && chance(0.2)) { S.st.safety++; log(`Handoff gap: ${p.unit} reports a missed med for ${name(p)} after the rushed report`, 'bad'); moment('Rushed handoff led to a missed medication upstairs'); }
+      break;
+    case 'lwbs': S.st.lwbs++; log(`${name(p)} (ESI ${p.esi}) left without being seen after ${fmtDur(los)}`, 'bad'); toast(`${name(p)} left without being seen (${fmtDur(los)} wait)`, 'bad'); break;
+    case 'elope': S.st.elope++; break;
+  }
+}
+
+/* ================= modifiers ================= */
+const addMod = (k, v, dur) => S.mods.push({k, v, until:S.t + dur});
+const modOn = k => S.mods.some(m => m.k === k && m.until > S.t);
+const modMul = k => S.mods.filter(m => m.k === k && m.until > S.t).reduce((a, m) => a * m.v, 1);
+const modSum = k => S.mods.filter(m => m.k === k && m.until > S.t).reduce((a, m) => a + m.v, 0);
+
+/* ================= EVS ================= */
+const evsCrews = () => clamp(2 + modSum('evsAdd'), 1, 5);
+function requestEVS(r) {
+  if (r.state !== 'dirty') return;
+  if (!r.req) { r.req = true; S.evsQ.push(r.id); log(`EVS requested for ${r.id}`, 'info'); }
+  else {
+    const i = S.evsQ.indexOf(r.id);
+    if (i > 0) { S.evsQ.splice(i, 1); S.evsQ.unshift(r.id); toast(`${r.id} bumped to STAT clean — next crew takes it`, 'info'); }
+    else toast(`${r.id} is next in the EVS queue`, 'info');
+  }
+}
+function evsTick() {
+  const rooms = Object.values(S.rooms);
+  for (const r of rooms) if (r.state === 'cleaning' && --r.timer <= 0) { r.state = 'clean'; r.timer = 0; }
+  let active = rooms.filter(r => r.state === 'cleaning').length;
+  while (active < evsCrews() && S.evsQ.length) {
+    const r = R(S.evsQ.shift());
+    if (!r || r.state !== 'dirty') continue;
+    r.state = 'cleaning'; r.req = false;
+    r.timer = r.timerMax = Math.round((r.type === 'trauma' ? ri(18, 28) : ri(11, 19)) * modMul('cleanMult'));
+    active++;
+  }
+}
+
+/* ================= providers ================= */
+const onDuty = d => S.t >= d.start && S.t < d.end;
+function providerTick() {
+  // ESI 1 patients get a physician immediately — interrupt whoever isn't with a critical patient
+  for (const p of S.pts) {
+    if (p.esi === 1 && p.phase === 'awaitMD' && p.loc === 'room' && !S.docs.some(d => d.pt === p.id)) {
+      const mds = S.docs.filter(d => onDuty(d) && !d.app && !(d.pt && P(d.pt) && P(d.pt).esi === 1));
+      if (!mds.length) continue;
+      const d = mds.sort((a, b) => a.busy - b.busy)[0];
+      if (d.pt) { const q = P(d.pt); if (q) q.phase = d.task === 'eval' ? 'awaitMD' : 'results'; }
+      startTask(d, p);
+    }
+  }
+  for (const d of S.docs) {
+    if (!onDuty(d)) {
+      if (d.pt) { const q = P(d.pt); if (q) q.phase = d.task === 'eval' ? 'awaitMD' : 'results'; d.pt = null; d.task = null; d.busy = 0; }
+      continue;
+    }
+    if (d.pt) { if (--d.busy <= 0) finishTask(d); continue; }
+    const appOn = S.docs.some(x => x.app && onDuty(x));
+    let best = null, bestPr = -1e9;
+    for (const p of S.pts) {
+      const needs = (p.phase === 'awaitMD' && p.loc === 'room') || (p.phase === 'results' && (p.loc === 'room' || p.loc === 'results'));
+      if (!needs || S.docs.some(x => x.pt === p.id)) continue;
+      const fastRoom = p.loc === 'room' && R(p.room).type === 'fast';
+      if (d.app && !(p.esi >= 4 || (fastRoom && p.esi === 3)) ) continue;
+      if (d.app && p.psych) continue;
+      const since = S.t - (p.phase === 'awaitMD' ? p.roomedAt : p.resAt);
+      let pr = (6 - p.esi) * 25 + since * 0.7 + (p.phase === 'results' ? 12 : 0);
+      if (p.esi === 1) pr += 500;
+      if (p.vip) pr += 60;
+      if (!d.app && appOn && p.esi >= 4 && since < 45) pr -= 90;
+      if (d.app && fastRoom) pr += 20;
+      if (pr > bestPr) { bestPr = pr; best = p; }
+    }
+    if (best) startTask(d, best);
+  }
+}
+function startTask(d, p) {
+  d.pt = p.id; p.md = d.short;
+  const mult = modMul('evalMult');
+  if (p.phase === 'awaitMD') {
+    d.task = 'eval'; p.phase = 'eval';
+    d.busy = Math.max(3, Math.round([0, 22, 16, 13, 9, 7][p.esi] * rnd(0.8, 1.2) * mult));
+    if (p.seenAt == null) { p.seenAt = S.t; S.st.seen++; S.st.d2p.push(S.t - p.arrive); }
+  } else {
+    d.task = 'reval'; p.phase = 'reval';
+    d.busy = Math.max(3, Math.round(ri(5, 10) * mult));
+  }
+}
+function finishTask(d) {
+  const p = P(d.pt), task = d.task; d.pt = null; d.task = null; d.busy = 0;
+  if (!p) return;
+  if (task === 'eval') orderTests(p); else decideDispo(p);
+}
+function orderTests(p) {
+  const e = p.esi; let tests = [], dur = 0;
+  if (p.psych) { tests = ['LAB', 'UDS']; dur = ri(45, 80); }
+  else if (e === 5) { if (chance(0.25)) { tests = ['UA']; dur = ri(20, 35); } }
+  else if (e === 4) { if (chance(0.6)) { tests = [pick(['XR', 'XR', 'UA', 'LAB'])]; dur = ri(30, 60); } }
+  else if (e === 3) { tests = ['LAB', pick(['CT', 'XR', 'US', 'CT'])]; dur = ri(60, 130); }
+  else if (e === 2) { tests = ['LAB', pick(['CT', 'CT', 'XR', 'ECHO', 'CTA'])]; dur = ri(55, 115); }
+  else { tests = ['LAB', 'CT']; dur = ri(35, 70); }
+  if (!tests.length) { decideDispo(p); return; }
+  if (p.peds) dur = Math.round(dur * 0.8);
+  dur += modSum('testAdd') + (e >= 3 ? modSum('testAddLow') : 0);
+  if (tests.includes('CT') || tests.includes('CTA')) dur += modSum('ctAdd');
+  p.tests = tests; p.phase = 'tests'; p.timer = dur;
+}
+function bedWait(unit) {
+  const base = {ICU:[60, 220], 'Step-down':[60, 230], Tele:[60, 280], Med:[45, 250], OR:[20, 45], 'Peds floor':[60, 180], "Children's Hosp":[90, 220], 'Psych facility':[180, 460]}[unit] || [60, 240];
+  let w = ri(base[0], base[1]) * S.diff.bed * modMul('bedMult');
+  if (S.t < 12 * 60 && unit !== 'OR') w *= 1.25; // inpatient discharges happen after lunch
+  return Math.round(w);
+}
+function decideDispo(p) {
+  const e = p.esi, r = Math.random();
+  p.dispoAt = S.t;
+  const admit = (unit, kind = 'admit') => { p.dispo = kind; p.unit = unit; p.phase = 'admit'; p.timer = bedWait(unit);
+    log(`${p.md ? 'Dr ' + p.md : 'MD'}: ${name(p)} — ${kind === 'transfer' ? 'transfer to' : 'admit to'} ${unit}`, 'info'); };
+  if (p.psych) { if (r < 0.55) return admit('Psych facility', 'transfer'); }
+  else if (p.trauma && e === 1 && chance(0.5)) return admit('OR');
+  else {
+    const ap = [0, 0.88, 0.55, 0.24, 0.04, 0][e], op = p.peds ? 0 : [0, 0, 0.14, 0.18, 0.05, 0][e];
+    if (r < ap) {
+      if (p.peds) return admit(chance(0.5) ? 'Peds floor' : "Children's Hosp", chance(0.5) ? 'admit' : 'transfer');
+      return admit(e === 1 ? 'ICU' : pick(['Tele', 'Med', 'Med', 'Tele', 'Step-down']));
+    }
+    if (r < ap + op) { p.dispo = 'obs'; p.phase = 'obs'; log(`Dr ${p.md}: ${name(p)} — place in observation`, 'info'); return; }
+  }
+  p.dispo = 'dc'; p.phase = 'dc'; p.timer = ri(12, 28);
+}
+
+/* ================= per-patient tick ================= */
+function ptTick(p) {
+  if (p.loc === 'incoming') return;
+  switch (p.phase) {
+    case 'tests': if (--p.timer <= 0) { if (p.psych && !p.consulted) { p.phase = 'consult'; p.timer = ri(60, 140); } else { p.phase = 'results'; p.resAt = S.t; } } break;
+    case 'consult': if (--p.timer <= 0) { p.consulted = true; p.phase = 'results'; p.resAt = S.t; } break;
+    case 'dc': if (--p.timer <= 0) { depart(p, 'dc'); return; } break;
+    case 'admit': if (--p.timer <= 0) { p.phase = 'transport'; p.timer = ri(10, 22); if (p.loc === 'room') log(`Bed ready for ${name(p)} (${p.unit}) — transport called`, 'good'); } break;
+    case 'transport': if (--p.timer <= 0) { depart(p, 'admit'); return; } break;
+    case 'obs': if (S.t - p.dispoAt > 180) { p.phase = 'admit'; p.dispo = 'admit'; p.unit = 'Med'; p.timer = bedWait('Med'); log(`${name(p)} waited 3h for an obs bed — hospitalist converted to inpatient admit`, 'warn'); } break;
+    case 'inObs': if (--p.timer <= 0) { if (chance(0.85)) { depart(p, 'obsdc'); return; } p.phase = 'admit'; p.dispo = 'admit'; p.unit = 'Med'; p.timer = bedWait('Med'); log(`${name(p)} failed obs — admitting to Med`, 'info'); } break;
+  }
+  const inObsRoom = p.loc === 'room' && R(p.room).type === 'obs';
+  if (['admit', 'transport', 'obs'].includes(p.phase) && !inObsRoom) S.st.boardMin++;
+  risk(p);
+}
+function adverse(p, why) {
+  if ((p.adverseCount = (p.adverseCount || 0) + 1) > 2) return;
+  S.st.adverse++; if (p.mci) S.st.mciAdverse++; p.lastAdverse = S.t;
+  log(`ADVERSE EVENT: ${name(p)} ${why}`, 'bad'); toast(`⚠ Adverse event: ${name(p)} ${why}`, 'bad');
+  moment(`${p.ageLabel} ${p.cc} ${why}`);
+}
+function complaint(p, why) {
+  p.complained = true; S.st.complaints++; log(`Complaint: ${name(p)} — ${why}`, 'warn');
+}
+function psychEvent(p) {
+  S.st.safety++;
+  if (chance(0.5)) { log(`SAFETY: ${name(p)} eloped from the department`, 'bad'); toast(`⚠ ${name(p)} (psych hold) eloped`, 'bad'); moment(`Psych patient eloped from ${p.room || 'the waiting room'}`); depart(p, 'elope'); return true; }
+  log(`SAFETY: ${name(p)} became combative — security and restraints`, 'bad'); toast(`⚠ ${name(p)} became combative — security called`, 'bad');
+  moment('Agitated psych patient required restraints'); p.sitter = true; return false;
+}
+function risk(p) {
+  const rm = modMul('riskMult');
+  if (p.loc === 'waiting' || p.loc === 'ems') {
+    const w = S.t - p.arrive;
+    if (p.loc === 'ems') {
+      const wall = S.t - p.emsAt;
+      if (wall === 30 || wall === 60) { S.st.emsDelay++; log(`EMS offload delay: ${name(p)} on the stretcher ${wall} min — crew can't leave`, 'bad'); if (wall === 30) toast(`🚑 EMS crew stuck 30 min with ${name(p)}`, 'warn'); }
+    }
+    if (p.esi === 1 && w >= 4 && S.t - p.lastAdverse > 30 && chance(0.05 * rm)) adverse(p, 'crashed without a resus bed');
+    else if (p.esi === 2 && w >= 20 && chance(0.006 * rm)) { adverse(p, 'decompensated while waiting for a bed'); p.esi = 1; }
+    else if (p.esi === 3 && w >= 90 && chance(0.0015 * rm)) { p.esi = 2; log(`${name(p)} worsened in the waiting room — re-triaged ESI 2`, 'warn'); }
+    if (p.psych && !p.sitter && w >= 30 && chance(0.004 * rm)) { psychEvent(p); return; }
+    if (p.loc === 'waiting' && !p.vip) {
+      const th = {3:[150, 0.003], 4:[60, 0.006], 5:[45, 0.008]}[p.esi];
+      if (th && w >= th[0] && chance(th[1] * (p.calm ? 0.35 : 1))) { depart(p, 'lwbs'); return; }
+    }
+    if (w >= 120 && !p.complained && !p.calm && chance(0.003)) complaint(p, 'waited over 2 hours');
+    return;
+  }
+  if (p.loc === 'results') {
+    if (['admit', 'transport', 'obs'].includes(p.phase)) S.st.poorMin++;
+    if (!p.complained && chance(0.001)) complaint(p, 'sent back to the waiting room');
+    return;
+  }
+  const r = R(p.room), f = fit(p, r);
+  if (f.lvl === 'poor') {
+    S.st.poorMin++;
+    const stab = ['dc', 'admit', 'transport', 'inObs', 'obs'].includes(p.phase) ? 0.5 : 1;
+    if (f.risk === 'det' && S.t - p.lastAdverse > 60 && chance(0.005 * rm * stab)) { adverse(p, `deteriorated in an unmonitored space (${r.id})`); if (p.esi > 1) p.esi--; }
+    else if (f.risk === 'psych' && !p.sitter && chance(0.004 * rm)) { psychEvent(p); }
+    else if (f.risk === 'complaint' && !p.complained && chance(0.006)) complaint(p, f.why.toLowerCase());
+  } else if (f.lvl === 'fair') {
+    if (f.risk === 'psych' && !p.sitter && chance(0.0012 * rm)) psychEvent(p);
+    else if (f.risk === 'complaint' && !p.complained && chance(0.0015)) complaint(p, f.why.toLowerCase());
+  }
+}
+
+/* ================= arrivals ================= */
+const CURVE = [3.4, 4.4, 5.6, 6.6, 7.1, 7.2, 7.0, 6.6, 6.4, 6.1, 6.0, 5.6];
+function arrivals() {
+  const hr = clamp(Math.floor((S.t - SHIFT_START) / 60), 0, 11);
+  const rate = CURVE[hr] * S.diff.mult / 60;
+  if (!chance(rate)) return;
+  if (chance(0.3)) { if (!modOn('diversion') || chance(0.15)) radioEMS(); }
+  else addWalkIn();
+}
+
+/* ================= main tick ================= */
+function tick() {
+  S.t++;
+  S.mods = S.mods.filter(m => m.until > S.t);
+  if (modOn('diversion')) S.st.divMin++;
+  for (const r of Object.values(S.rooms)) if (r.closedUntil && r.closedUntil <= S.t) r.closedUntil = 0;
+  arrivals();
+  for (const p of S.pts.filter(p => p.loc === 'incoming' && S.t >= p.eta)) emsArrive(p);
+  evsTick();
+  providerTick();
+  for (const p of [...S.pts]) if (S.pts.includes(p)) ptTick(p);
+  if (S.t >= SHIFT_END) { endShift(); return; }
+  if (S.mciAt && !S.mciDone && S.t >= S.mciAt) { openMCI(); return; }
+  if (S.t >= S.nextDecision) openDecision();
+}
+
+/* ================= decisions ================= */
+function closeRooms(ids, dur) { for (const id of ids) R(id).closedUntil = S.t + dur; }
+const boarders = () => S.pts.filter(p => p.phase === 'admit' && p.loc !== 'incoming').sort((a, b) => b.timer - a.timer);
+const DECISIONS = [
+  {id:'sickcall', prep:() => S.t < SHIFT_END - 200 ? {} : null,
+    title:'Nurse sick call', body:() => `Pod B's second nurse just called out for the rest of the day. Staffing has one agency nurse available at premium rates.`,
+    opts:[
+      {b:'Pay for the agency nurse', s:'$2.5k overtime, no impact on care', fn:() => { S.st.budget += 2.5; return 'Agency nurse arrives within the hour. Staffing holds.'; }},
+      {b:'Close hallway beds H4 and H5', s:'Two fewer spaces for 4 hours', fn:() => { closeRooms(['H4', 'H5'], 240); return 'H4 and H5 closed for 4 hours. Patients already there stay.'; }},
+      {b:'Run the pods short', s:'Slower evaluations and more risk for 3 hours', fn:() => { addMod('evalMult', 1.35, 180); addMod('riskMult', 1.35, 180); return 'The team is stretched. Evaluations slow down and everyone is a bit less safe.'; }},
+    ]},
+  {id:'family', prep:() => { const p = S.pts.filter(p => p.loc === 'waiting' && !p.psych && S.t - p.arrive > 55).sort((a, b) => a.arrive - b.arrive)[0]; return p ? {p} : null; },
+    title:'Upset family at triage', body:c => `${name(c.p)}'s family (${c.p.ageLabel}, ${c.p.cc}) has waited ${fmtDur(S.t - c.p.arrive)} and is getting loud at the triage desk, recording on a phone.`,
+    opts:[
+      {b:'Go out and talk with them yourself', s:'Usually works. Sometimes they file anyway.', fn:c => { c.p.calm = true; if (chance(0.25)) { complaint(c.p, 'filed despite your apology'); return 'You explain the wait. They calm down, but file a complaint online anyway.'; } return 'You give an honest update and a time estimate. They settle in and agree to wait.'; }},
+      {b:'Call the patient advocate', s:'Guaranteed calm, but it becomes a formal complaint', fn:c => { c.p.calm = true; complaint(c.p, 'formal grievance via patient advocate'); return 'The advocate takes over. The family stays, and a grievance is logged.'; }},
+      {b:'Ask security to stand by', s:'Free, but they might just leave', fn:c => { if (chance(0.5)) { depart(c.p, 'lwbs'); return 'They feel threatened and leave without being seen.'; } complaint(c.p, 'felt intimidated by security'); return 'Things quiet down, but they file a complaint about security.'; }},
+    ]},
+  {id:'diversion', prep:() => (S.pts.filter(p => p.loc === 'waiting').length >= 7 || S.pts.filter(p => p.loc === 'ems').length >= 2) && !modOn('diversion') ? {} : null,
+    title:'EMS supervisor on the phone', body:() => `"You've got crews stuck on the wall and a full waiting room. Do you want to go on ambulance diversion?"`,
+    opts:[
+      {b:'Go on diversion for 90 minutes', s:'Far fewer ambulances, but diversion is tracked by the county', fn:() => { addMod('diversion', 1, 90); return 'Diversion is on. Most ambulances go to the next hospital for 90 minutes.'; }},
+      {b:'Stay open', s:'Keep taking everyone', fn:() => 'You stay open. The county thanks you, the waiting room does not.'},
+    ]},
+  {id:'hospitalist', prep:() => { const b = S.pts.filter(p => p.phase === 'admit' && p.dispo === 'admit' && p.unit !== 'OR' && p.timer > 20 && p.loc === 'room')[0]; return b ? {p:b} : null; },
+    title:'Hospitalist pushback', body:c => `The hospitalist wants a repeat CT on ${name(c.p)} (${c.p.cc}, in ${c.p.room}) before accepting to ${c.p.unit}. The ED attending thinks it's unnecessary.`,
+    opts:[
+      {b:'Get the CT', s:'About an hour longer before the bed is assigned', fn:c => { c.p.timer += 60; return `${name(c.p)}'s admission is held for another CT.`; }},
+      {b:'Escalate to the medical director', s:'Could clear the bed now, or sour the relationship', fn:c => { if (chance(0.6)) { c.p.timer = Math.min(c.p.timer, 10); return 'The medical director backs the ED. Bed assignment is coming now.'; } c.p.timer += 30; S.st.complaints++; return 'It backfires. The hospitalist files an incident report and the admission drags on.'; }},
+    ]},
+  {id:'labdown', prep:() => ({}),
+    title:'Chemistry analyzer down', body:() => 'The main lab chemistry analyzer just failed. The lab says 2 hours to fix it.',
+    opts:[
+      {b:'Run everything on the backup analyzer', s:'All labs +25 min for 2 hours', fn:() => { addMod('testAdd', 25, 120); S.pts.forEach(p => { if (p.phase === 'tests') p.timer += 25; }); return 'All pending labs are slowed.'; }},
+      {b:'Point-of-care for ESI 1–2 only', s:'Sick patients unaffected; ESI 3–5 labs +50 min', fn:() => { addMod('testAddLow', 50, 120); S.pts.forEach(p => { if (p.phase === 'tests' && p.esi >= 3) p.timer += 50; }); return 'Critical patients get bedside testing. Everyone else waits longer.'; }},
+    ]},
+  {id:'evs', prep:() => S.t < SHIFT_END - 150 ? {} : null,
+    title:'Environmental services short', body:() => 'EVS lost a housekeeper to a needlestick injury. They can keep 2 crews on the ED only with overtime.',
+    opts:[
+      {b:'Approve overtime', s:'$1.5k, cleaning unaffected', fn:() => { S.st.budget += 1.5; return 'Overtime approved. Two crews stay.'; }},
+      {b:'Accept one crew for 3 hours', s:'Rooms turn over slower', fn:() => { addMod('evsAdd', -1, 180); return 'Only one EVS crew for 3 hours. Prioritize carefully.'; }},
+      {b:'Techs help clean rooms', s:'Two crews, but each clean takes longer and care slows a bit', fn:() => { addMod('cleanMult', 1.35, 180); addMod('evalMult', 1.1, 180); return 'ED techs are pitching in on room turnover.'; }},
+    ]},
+  {id:'vip', prep:() => S.t < SHIFT_END - 120 ? {} : null,
+    title:'Call from administration', body:() => `A hospital board member's father just checked in (ESI 4, wrist injury). The CEO's office asks you to "take good care of him" and get him roomed now.`,
+    opts:[
+      {b:'Triage order stands', s:'Fair to everyone. Administration may be unhappy.', fn:() => { const p = addWalkIn({esi:4, kind:'adult', cc:'Wrist injury'}); p.age = ri(70, 82); setAgeLabel(p); if (chance(0.4)) { S.st.complaints++; return 'He waits his turn. The CEO\'s office sends a terse email.'; } return 'He waits his turn and is gracious about it.'; }},
+      {b:'Move him to the front of the line', s:'He gets the next provider, but skipping triage order is noted', fn:() => { const p = addWalkIn({esi:4, kind:'adult', cc:'Wrist injury'}); p.age = ri(70, 82); setAgeLabel(p); p.vip = true; S.st.bypass++; return 'He\'s flagged VIP. Room him and a provider will see him next.'; }},
+    ]},
+  {id:'inptpush', prep:() => boarders().filter(p => p.timer > 30 && p.dispo === 'admit').length >= 2 ? {} : null,
+    title:'Bed huddle offer', body:() => 'The house supervisor can push 3 of your boarders upstairs right now if the ED skips the full nurse-to-nurse report and sends a written handoff only.',
+    opts:[
+      {b:'Send them up now', s:'Frees rooms immediately; some risk of handoff errors', fn:() => { const bs = boarders().filter(p => p.timer > 0 && p.dispo === 'admit').slice(0, 3); bs.forEach(p => { p.timer = 1; p.handoffRisk = true; }); return `${bs.length} boarders are heading upstairs.`; }},
+      {b:'Insist on a full report', s:'Safer handoffs, boarders stay', fn:() => 'Boarders stay until their beds are properly ready.'},
+    ]},
+  {id:'agitated', prep:() => { const p = S.pts.find(p => p.psych && !p.sitter && (p.loc === 'waiting' || p.loc === 'ems' || (p.loc === 'room' && R(p.room).type !== 'bh'))); return p ? {p} : null; },
+    title:'Patient escalating', body:c => `${name(c.p)} (${c.p.cc}, ${c.p.room || 'waiting room'}) is pacing, yelling, and trying the exit doors.`,
+    opts:[
+      {b:'Assign a 1:1 sitter and security', s:'$1k, prevents elopement and violence', fn:c => { c.p.sitter = true; S.st.budget += 1; return 'A sitter is posted. They stay safe.'; }},
+      {b:'Offer oral medication and reassess', s:'Often works', fn:c => { if (chance(0.6)) { c.p.sitter = true; return 'They accept medication and settle down.'; } psychEvent(c.p); return 'It didn\'t work.'; }},
+      {b:'Wait and see', s:'Hope it passes', fn:() => 'You keep an eye on it.'},
+    ]},
+  {id:'transfer', prep:() => S.t < SHIFT_END - 90 ? {} : null,
+    title:'Transfer request', body:() => 'A rural critical access hospital is calling: 58-year-old with septic shock, on pressors, needs ICU-level care they can\'t provide. Can you accept?',
+    opts:[
+      {b:'Accept', s:'Critical patient arrives in ~20 min — needs a resus or acute bed', fn:() => { radioEMS({esi:1, kind:'adult', cc:'Septic shock (transfer)'}, 20); S.st.transferAccepted++; return 'Accepted. Arriving by critical care transport in about 20 minutes.'; }},
+      {b:'Decline — no capacity', s:'They\'ll call the next hospital', fn:() => { S.st.complaints++; return 'You decline. The transfer center logs it as a capacity refusal.'; }},
+    ]},
+  {id:'ctdown', prep:() => ({}),
+    title:'CT scanner down', body:() => 'The ED CT scanner is down for an unplanned repair, about an hour. The inpatient scanner can take ED patients, but transport is slow.',
+    opts:[
+      {b:'Use the inpatient scanner', s:'CTs take ~45 min longer for the next hour', fn:() => { addMod('ctAdd', 45, 60); S.pts.forEach(p => { if (p.phase === 'tests' && (p.tests.includes('CT') || p.tests.includes('CTA'))) p.timer += 45; }); return 'CT patients are routed upstairs.'; }},
+      {b:'Go on CT diversion for an hour', s:'Ambulances diverted; scans proceed upstairs', fn:() => { addMod('diversion', 1, 60); addMod('ctAdd', 25, 60); return 'CT diversion is active for an hour.'; }},
+    ]},
+];
+function openDecision() {
+  S.nextDecision = S.t + ri(65, 110);
+  const pool = DECISIONS.filter(d => !S.usedDecisions.has(d.id)).map(d => ({d, c:d.prep()})).filter(x => x.c);
+  if (!pool.length) return;
+  const {d, c} = pick(pool);
+  S.usedDecisions.add(d.id);
+  const wasSpeed = S.speed; setSpeed(0);
+  showModal(`<div class="card"><div class="tag">Charge nurse decision · ${fmtClock(S.t)}</div><h3>${esc(d.title)}</h3><p>${esc(d.body(c))}</p>
+    <div class="opts">${d.opts.map((o, i) => `<button class="opt" data-opt="${i}"><b>${esc(o.b)}</b><span>${esc(o.s)}</span></button>`).join('')}</div></div>`,
+    el => {
+      el.querySelectorAll('[data-opt]').forEach(b => b.onclick = () => {
+        const o = d.opts[+b.dataset.opt];
+        const res = o.fn(c);
+        S.st.decisions.push(`${d.title}: ${o.b}`);
+        log(`Decision — ${d.title}: ${o.b}. ${res}`, 'info');
+        hideModal(); toast(res, 'info'); setSpeed(wasSpeed || 1); render();
+      });
+    });
+}
+
+/* ================= MCI ================= */
+const SURGE = [
+  {k:'surge', b:'Open surge spaces S1–S6', s:'Six stretchers in the hallway and lobby (unmonitored)'},
+  {k:'docs', b:'Call in 2 backup physicians', s:'+2 doctors for 4 hours · $6k'},
+  {k:'beds', b:'Cancel elective surgeries', s:'Inpatient beds open twice as fast for 4 hours · $8k lost revenue'},
+  {k:'ft', b:'Convert fast track to acute', s:'Fast track rooms count as monitored for 4 hours'},
+  {k:'lounge', b:'Open the discharge lounge', s:'Everyone waiting on discharge paperwork leaves their room now'},
+  {k:'div', b:'Divert all other ambulances', s:'2 hours of diversion (tracked by the county)'},
+];
+function openMCI() {
+  S.mciDone = true;
+  const wasSpeed = S.speed; setSpeed(0);
+  const n = ri(10, 14);
+  const chosen = new Set(['surge', 'lounge']);
+  showModal(`<div class="card wide mci"><div class="tag">⚠ Mass casualty incident · ${fmtClock(S.t)}</div>
+    <h3>Bus vs. tractor-trailer on the interstate</h3>
+    <p>County dispatch declares an MCI. Estimated <b>${n} patients</b> heading to you, first arrivals in about 10 minutes. Field triage tags are coming in: <span class="flag red">RED</span> <span class="flag yel">YELLOW</span> <span class="flag grn">GREEN</span>.</p>
+    <p>Pick your surge options. You can assign beds to incoming MCI patients before they arrive.</p>
+    <div class="opts">${SURGE.map(o => `<button class="opt tog ${chosen.has(o.k) ? 'on' : ''}" data-k="${o.k}"><b>${esc(o.b)}</b><span>${esc(o.s)}</span></button>`).join('')}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn pri" id="mciGo">Activate surge plan</button></div></div>`,
+    el => {
+      el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = b.dataset.k; chosen.has(k) ? chosen.delete(k) : chosen.add(k); b.classList.toggle('on'); });
+      el.querySelector('#mciGo').onclick = () => {
+        activateSurge(chosen);
+        for (let i = 0; i < n; i++) {
+          const tag = i < Math.round(n * 0.22) ? 'RED' : i < Math.round(n * 0.5) ? 'YEL' : 'GRN';
+          const esi = tag === 'RED' ? 1 : tag === 'YEL' ? 2 : pick([3, 4, 4]);
+          const kind = chance(0.12) && tag !== 'RED' ? 'peds' : 'adult';
+          const cc = tag === 'RED' ? pick(['Chest trauma, hypotensive', 'Open femur fracture', 'Head injury, GCS 8', 'Pelvic fracture']) :
+                     tag === 'YEL' ? pick(['Rib fractures', 'Forearm fracture', 'Scalp lac, LOC', 'Abdominal pain, seatbelt sign']) :
+                     pick(['Neck pain', 'Abrasions', 'Ankle sprain', 'Minor lacerations', 'Shaken up, chest soreness']);
+          const p = radioEMS({esi, kind, cc, trauma:true, mci:tag}, ri(9, 45));
+          p.cc = cc;
+        }
+        S.st.decisions.push('MCI surge plan: ' + ([...chosen].map(k => SURGE.find(o => o.k === k).b).join('; ') || 'none'));
+        log(`MCI declared — ${n} patients inbound. Surge plan activated.`, 'bad');
+        moment(`MCI: ${n} patients from a bus crash`);
+        hideModal(); setSpeed(wasSpeed || 1); render();
+      };
+    });
+}
+function activateSurge(ch) {
+  if (ch.has('surge')) { S.surge = true; log('Surge spaces S1–S6 opened', 'info'); }
+  if (ch.has('docs')) { S.st.budget += 6; S.docs.push({name:'Dr. Haddad (backup)', short:'HAD', start:S.t + 15, end:S.t + 255, busy:0, pt:null, task:null}, {name:'Dr. Lin (backup)', short:'LIN', start:S.t + 25, end:S.t + 265, busy:0, pt:null, task:null}); }
+  if (ch.has('beds')) { S.st.budget += 8; addMod('bedMult', 0.5, 240); S.pts.forEach(p => { if (p.phase === 'admit') p.timer = Math.round(p.timer / 2); }); }
+  if (ch.has('ft')) addMod('ftAcute', 1, 240);
+  if (ch.has('lounge')) { const dcs = S.pts.filter(p => p.phase === 'dc' && p.loc === 'room'); dcs.forEach(p => { vacate(p); p.loc = 'results'; }); log(`Discharge lounge opened — ${dcs.length} patients moved out of rooms`, 'good'); }
+  if (ch.has('div')) addMod('diversion', 1, 120);
+}
+
+/* ================= end of shift ================= */
+function scoreCard() {
+  const s = S.st, L = [];
+  const add = (label, detail, pts) => { if (Math.abs(pts) >= 0.05) L.push({label, detail, pts}); };
+  const d2p = avg(s.d2p);
+  add('Adverse events', `${s.adverse} patient${s.adverse === 1 ? '' : 's'} harmed by delays or the wrong space`, -7 * s.adverse);
+  add('Safety events', `${s.safety} (elopements, violence, handoff errors)`, -4 * s.safety);
+  add('Left without being seen', `${s.lwbs} patients walked out`, -Math.min(20, 2 * s.lwbs));
+  add('EMS offload delays', `${s.emsDelay} times a crew was stuck 30+ min`, -Math.min(20, 2 * s.emsDelay));
+  add('Resus bays blocked', `${s.resusBlocked} critical arrivals found no open bay`, -3 * s.resusBlocked);
+  add('Complaints', `${s.complaints} filed`, -1 * s.complaints);
+  if (d2p > 20) add('Door-to-provider time', `average ${Math.round(d2p)} min (target ≤ 20)`, -Math.min(20, (d2p - 20) * 0.35));
+  add('Patients in the wrong space', `${fmtDur(s.poorMin)} of poor-fit placements`, -Math.min(15, s.poorMin / 45));
+  add('Overtime and surge spending', `$${s.budget.toFixed(1)}k`, -Math.min(8, s.budget * 0.3));
+  add('Ambulance diversion', fmtDur(s.divMin), -Math.min(8, s.divMin / 30));
+  add('Skipped triage order', `${s.bypass} VIP bump`, -2 * s.bypass);
+  add('Accepted outside transfers', `${s.transferAccepted}`, 2 * s.transferAccepted);
+  const thr = s.dc + s.admit + s.transfer + s.obsIn;
+  add('Throughput', `${thr} patients dispositioned or moved to obs`, Math.min(8, thr / 10));
+  const total = clamp(Math.round(100 + L.reduce((a, l) => a + l.pts, 0)), 0, 100);
+  const g = total >= 97 ? 'A+' : total >= 90 ? 'A' : total >= 85 ? 'B+' : total >= 80 ? 'B' : total >= 75 ? 'C+' : total >= 70 ? 'C' : total >= 60 ? 'D' : 'F';
+  return {total, grade:g, lines:L, d2p};
+}
+function endShift() {
+  S.ended = true; setSpeed(0);
+  const sc = scoreCard(), s = S.st;
+  const remain = S.pts.filter(p => p.loc !== 'incoming');
+  const notes = [];
+  if (s.adverse === 0) notes.push('No patient was harmed by a delay — that is the whole job.');
+  else notes.push(`${s.adverse} adverse event${s.adverse > 1 ? 's' : ''}. Critical patients need a monitored bed within minutes; keep a resus bay open.`);
+  if (s.lwbs >= 4) notes.push('Lots of walkouts. Use fast track and hallway beds for low-acuity patients, and move results-pending patients to internal waiting.');
+  if (s.emsDelay >= 3) notes.push('Ambulance crews sat on the wall. Pre-assign rooms when EMS radios in.');
+  if (s.poorMin > 300) notes.push('Patients spent a lot of time in the wrong kind of space. Watch the red-outlined tiles.');
+  if (avg(s.d2p) > 40) notes.push('Door-to-provider was slow. Rooms sat dirty or full while patients waited — keep EVS moving.');
+  if (s.boardMin > 1200) notes.push(`Boarders took up ${fmtDur(s.boardMin)} of ED bed time. That is the hospital's capacity problem landing on you.`);
+  if (S.mciAt && s.mciPts) notes.push(`MCI: ${s.mciPts} patients received, ${s.mciAdverse} adverse event${s.mciAdverse === 1 ? '' : 's'}.`);
+  if (s.safety === 0 && s.adverse === 0 && s.lwbs <= 2) notes.push('A clean shift. The night charge nurse owes you coffee.');
+  let best = null; try { best = JSON.parse(localStorage.getItem('bedboard-best') || 'null'); if (!best || sc.total > best.total) localStorage.setItem('bedboard-best', JSON.stringify({total:sc.total, grade:sc.grade})); } catch (e) {}
+  log(`Shift over — grade ${sc.grade} (${sc.total})`, 'info');
+  showModal(`<div class="card wide"><div class="tag">19:00 · Shift report · ${esc(S.diff.name)}</div>
+    <div class="gradebig"><div class="g">${sc.grade}</div><div class="sc"><b>${sc.total} / 100</b>${best && best.total > sc.total ? `Personal best: ${best.grade} (${best.total})` : 'Handing off to night shift'}</div></div>
+    <div class="statgrid">
+      <div><b>${s.arrivals}</b>arrivals</div><div><b>${s.dc}</b>discharged</div><div><b>${s.admit + s.transfer}</b>admitted / transferred</div>
+      <div><b>${s.obsIn}</b>to obs unit</div><div><b>${Math.round(avg(s.d2p))}m</b>avg door-to-provider</div><div><b>${s.losDc.length ? fmtDur(avg(s.losDc)) : '—'}</b>avg LOS (discharged)</div>
+      <div><b>${s.lwbs}</b>left w/o being seen</div><div><b>${fmtDur(s.boardMin / 1)}</b>boarding time</div><div><b>${remain.length}</b>handed off to nights</div>
+    </div>
+    <table class="bd"><tbody><tr><td>Starting score</td><td></td><td>100</td></tr>
+      ${sc.lines.map(l => `<tr class="${l.pts < 0 ? 'neg' : 'pos'}"><td>${esc(l.label)}</td><td style="color:var(--muted)">${esc(l.detail)}</td><td>${l.pts > 0 ? '+' : ''}${l.pts.toFixed(1)}</td></tr>`).join('')}
+    </tbody></table>
+    <ul class="notes">${notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
+    ${s.moments.length ? `<p style="margin-top:8px;font-size:12px;color:var(--muted)"><b>Key moments:</b> ${s.moments.slice(0, 6).map(m => `${esc(m)}`).join(' · ')}</p>` : ''}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap"><button class="btn" id="viewBoard">View final board</button><button class="btn pri" id="again">New shift</button></div></div>`,
+    el => { el.querySelector('#again').onclick = () => showStart(); el.querySelector('#viewBoard').onclick = () => hideModal(); });
+}
+function moment(m) { S.st.moments.push(`${fmtClock(S.t)} ${m}`); }
+
+/* ================= UI: log / toast / modal ================= */
+function log(msg, kind = 'info') { S.log.unshift({t:S.t, msg, kind}); if (S.log.length > 120) S.log.pop(); }
+function toast(msg, kind = 'info') {
+  const box = $('#toasts');
+  while (box.children.length >= (innerWidth <= 820 ? 2 : 3)) box.firstChild.remove();
+  const d = document.createElement('div'); d.className = 'toast ' + kind; d.textContent = msg; box.appendChild(d);
+  setTimeout(() => d.remove(), kind === 'bad' ? 6000 : 4200);
+}
+function showModal(html, bind) { const m = $('#modal'); m.innerHTML = html; m.hidden = false; S && (S.modal = true); bind && bind(m); const f = m.querySelector('.btn.pri') || m.querySelector('.opt:not(.tog)'); f && f.focus({preventScroll:true}); }
+function hideModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; if (S) S.modal = false; }
+
+/* ================= rendering ================= */
+const waitCls = (m, a, b) => m >= b ? 'vlate' : m >= a ? 'late' : '';
+function flags(p) {
+  let f = '';
+  if (p.mci) f += `<span class="flag ${p.mci.toLowerCase()}">${p.mci}</span>`;
+  else if (p.mode === 'ems') f += '<span class="flag ems">EMS</span>';
+  if (p.trauma && !p.mci) f += '<span class="flag tr">TRA</span>';
+  if (p.peds) f += '<span class="flag peds">PEDS</span>';
+  if (p.psych) f += `<span class="flag bh">BH${p.sitter ? '·1:1' : ''}</span>`;
+  if (p.vip) f += '<span class="flag vip">VIP</span>';
+  return f;
+}
+function step(p) {
+  return {arrived:0, awaitMD:1, eval:2, tests:2, consult:2, results:3, reval:3, dc:4, admit:4, obs:4, inObs:4, transport:5}[p.phase] ?? 0;
+}
+function status(p) {
+  switch (p.phase) {
+    case 'arrived': return ['Waiting for a room', 's-need'];
+    case 'awaitMD': return [`Needs provider · ${fmtDur(S.t - p.roomedAt)}`, 's-need'];
+    case 'eval': return [`${p.md} at bedside`, 's-md'];
+    case 'tests': return [`${p.tests.join(' ')} pending · ${fmtDur(p.timer)}`, 's-tests'];
+    case 'consult': return [`Psych eval · ${fmtDur(p.timer)}`, 's-tests'];
+    case 'results': return [`Results back · needs dispo`, 's-res'];
+    case 'reval': return [`${p.md} deciding dispo`, 's-md'];
+    case 'dc': return [`DISCHARGE · paperwork ${fmtDur(p.timer)}`, 's-dc'];
+    case 'admit': return [`${p.dispo === 'transfer' ? 'XFER' : 'ADMIT'} ${p.unit} · bed ${fmtDur(p.timer)}`, 's-adm'];
+    case 'transport': return [`Bed ready · transport ${fmtDur(p.timer)}`, 's-adm'];
+    case 'obs': return [`OBS · needs obs bed`, 's-obs'];
+    case 'inObs': return [`In obs · ${fmtDur(p.timer)} left`, 's-obs'];
+  }
+  return ['', ''];
+}
+function progress(p) {
+  const n = step(p), dcl = p.dispo === 'dc' ? 'dispo-dc' : p.dispo === 'obs' ? 'dispo-obs' : p.dispo ? 'dispo-adm' : '';
+  return `<div class="prog ${dcl}" title="Roomed → Seen → Results → Dispo → Leaving">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+}
+
+function renderTop() {
+  $('#clock').innerHTML = `${fmtClock(S.t)}<small>${S.ended ? 'SHIFT OVER' : modOn('diversion') ? '⚠ ON DIVERSION' : fmtDur(SHIFT_END - S.t) + ' LEFT'}</small>`;
+  document.querySelectorAll('#speeds button').forEach(b => b.classList.toggle('on', +b.dataset.speed === S.speed));
+  const wait = S.pts.filter(p => p.loc === 'waiting');
+  const ems = S.pts.filter(p => p.loc === 'ems');
+  const longest = Math.max(0, ...wait.map(p => S.t - p.arrive));
+  const board = S.pts.filter(p => ['admit', 'transport', 'obs'].includes(p.phase) && !(p.loc === 'room' && R(p.room).type === 'obs')).length;
+  const dirty = Object.values(S.rooms).filter(r => r.state === 'dirty').length;
+  const sc = scoreCard();
+  const m = (label, val, cls = '') => `<div class="metric ${cls}">${label}<b>${val}</b></div>`;
+  $('#metrics').innerHTML =
+    m('Waiting', wait.length, wait.length >= 8 ? 'bad' : wait.length >= 5 ? 'warn' : '') +
+    m('Longest', fmtDur(longest), longest >= 120 ? 'bad' : longest >= 60 ? 'warn' : '') +
+    m('EMS wall', ems.length, ems.length >= 2 ? 'bad' : ems.length ? 'warn' : '') +
+    m('Dirty', dirty, dirty >= 5 ? 'warn' : '') +
+    m('Boarders', board, board >= 6 ? 'warn' : '') +
+    m('LWBS', S.st.lwbs, S.st.lwbs ? 'warn' : '') +
+    m('Events', S.st.adverse + S.st.safety, S.st.adverse + S.st.safety ? 'bad' : '') +
+    m('Grade', `${sc.grade}`, 'grade') +
+    (S.ended ? '<button class="btn pri" data-act="newshift" style="padding:3px 10px;font-size:12px">New shift</button>' : '');
+}
+
+function qrow(p, timeLabel, mins, a, b) {
+  const sel = S.sel === p.id ? 'sel' : '';
+  const alarm = (p.esi === 1 || (p.loc === 'ems' && S.t - p.emsAt >= 25)) && p.loc !== 'incoming' ? 'alarm' : '';
+  const sub = p.loc === 'incoming' ? (p.rsv ? `→ ${p.rsv} reserved` : 'Tap, then tap a room to pre-assign') : p.loc === 'results' ? status(p)[0] : `${p.cc}`;
+  return `<button class="qrow l${p.esi} ${sel} ${alarm}" data-pt="${p.id}">
+    <span class="esi e${p.esi}">${p.esi}</span>
+    <span style="min-width:0"><div class="nm">${esc(name(p))} <span style="color:var(--muted);font-weight:500">${p.ageLabel}</span>${flags(p)}</div><div class="sub">${p.loc === 'incoming' || p.loc === 'results' ? esc(p.cc) + ' · ' : ''}${esc(sub)}</div></span>
+    <span class="tm ${waitCls(mins, a, b)}">${fmtDur(mins)}<small>${timeLabel}</small></span></button>`;
+}
+function renderSide() {
+  const by = loc => S.pts.filter(p => p.loc === loc);
+  const sortQ = (a, b) => a.esi - b.esi || a.arrive - b.arrive;
+  const inc = by('incoming').sort((a, b) => a.eta - b.eta);
+  const ems = by('ems').sort(sortQ), wait = by('waiting').sort(sortQ), res = by('results').sort((a, b) => a.arrive - b.arrive);
+  const sel = S.sel && P(S.sel);
+  const resTarget = sel && sel.loc === 'room' && canResultsWait(sel) ? 'zone-target' : '';
+  const waitTarget = sel && sel.loc === 'ems' && sel.esi >= 3 && !sel.psych ? 'zone-target' : '';
+  $('#side').innerHTML = `<div class="panel">
+    <div class="qsec"><h2>Incoming EMS <span class="count">${inc.length}</span><span class="hint">radio reports</span></h2>
+      <div class="qlist">${inc.map(p => qrow(p, 'ETA', p.eta - S.t, 999, 9999)).join('') || '<div class="qempty">No ambulances inbound.</div>'}</div></div>
+    <div class="qsec"><h2>EMS stretchers <span class="count">${ems.length}</span><span class="hint">crew waiting to offload</span></h2>
+      <div class="qlist">${ems.map(p => qrow(p, 'WALL', S.t - p.emsAt, 15, 30)).join('') || '<div class="qempty">Ambulance bay clear.</div>'}</div></div>
+    <div class="qsec ${waitTarget}" data-zone="waiting"><h2>Waiting room <span class="count">${wait.length}</span><span class="hint">triaged, need a room</span></h2>
+      <div class="qlist">${wait.map(p => qrow(p, 'WAIT', S.t - p.arrive, p.esi <= 2 ? 10 : 45, p.esi <= 2 ? 20 : 90)).join('') || '<div class="qempty">Waiting room empty.</div>'}</div></div>
+    <div class="qsec ${resTarget}" data-zone="results"><h2>Results waiting <span class="count">${res.length}</span><span class="hint">internal chairs</span></h2>
+      <div class="qlist">${res.map(p => qrow(p, 'LOS', S.t - p.arrive, 240, 360)).join('') || '<div class="qempty">Seen, stable ESI 3–5 can wait here for results or discharge.</div>'}</div></div>
+  </div>`;
+}
+
+function tile(r) {
+  const sel = S.sel && P(S.sel);
+  const p = r.pt && P(r.pt);
+  const cls = ['room'];
+  let inner = '';
+  if (p) {
+    const f = fit(p, r), [st, sc] = status(p), los = S.t - p.arrive;
+    cls.push('occ', 'esi' + p.esi);
+    if (f.lvl === 'poor') cls.push('warnfit');
+    if (sel && sel.id === p.id) cls.push('selected');
+    if (p.esi === 1 && p.phase === 'awaitMD') cls.push('alarm');
+    inner = `<div class="rh"><span class="rid">${r.id}</span><span class="esi e${p.esi}">${p.esi}</span>${f.lvl === 'poor' ? '<span class="fitwarn" title="' + esc(f.why) + '">!</span>' : ''}<span class="los ${waitCls(los, 240, 360)}">${fmtDur(los)}</span></div>
+      <div class="pn">${esc(p.last.toUpperCase())}, ${p.first[0]} <span class="as">${p.ageLabel}</span>${flags(p)}</div>
+      <div class="cc">${esc(p.cc)}</div>${progress(p)}<div class="st ${sc}">${esc(st)}</div>`;
+    if (sel && sel.id !== p.id) cls.push('dimmed');
+  } else {
+    cls.push('empty');
+    const closed = r.closedUntil > S.t;
+    if (r.state === 'dirty') {
+      cls.push('dirty'); if (r.req) cls.push('req');
+      const qi = S.evsQ.indexOf(r.id);
+      inner = `<div class="rh"><span class="rid">${r.id}</span></div><div class="big">DIRTY</div><div class="sub2">${r.req ? `EVS queue #${qi + 1}${qi > 0 ? ' · tap = STAT' : ''}` : 'Tap to call EVS'}</div>`;
+      if (sel) cls.push('dimmed');
+    } else if (r.state === 'cleaning') {
+      cls.push('cleaning');
+      inner = `<div class="rh"><span class="rid">${r.id}</span><span class="los">${r.timer}m</span></div><div class="big">CLEANING</div><div class="bar"><i style="width:${Math.round(100 * (1 - r.timer / (r.timerMax || 15)))}%"></i></div>`;
+      if (sel) cls.push('dimmed');
+    } else if (r.rsv) {
+      const q = P(r.rsv);
+      cls.push('rsv', 'clean');
+      inner = `<div class="rh"><span class="rid">${r.id}</span>${q ? `<span class="esi e${q.esi}">${q.esi}</span>` : ''}</div><div class="big" style="color:var(--accent)">RESERVED</div><div class="sub2">${q ? `EMS ${esc(q.ageLabel)} ${esc(q.cc)} · ETA ${Math.max(0, q.eta - S.t)}m` : ''}</div>`;
+      if (sel && sel.id !== r.rsv) cls.push('dimmed');
+    } else if (closed) {
+      cls.push('closed');
+      inner = `<div class="rh"><span class="rid">${r.id}</span></div><div class="big" style="color:var(--dim)">CLOSED</div><div class="sub2">No nurse · ${fmtDur(r.closedUntil - S.t)}</div>`;
+    } else {
+      cls.push('clean');
+      let tag = '';
+      if (sel && sel.room !== r.id) {
+        const f = fit(sel, r); cls.push('fit-' + f.lvl);
+        tag = `<div class="fittag">${{good:'✓ Good fit', fair:'~ ' + f.why, poor:'! ' + f.why, no:'✕ ' + f.why}[f.lvl]}</div>`;
+      }
+      inner = `<div class="rh"><span class="rid">${r.id}</span></div><div class="big">READY</div>${tag || '<div class="sub2">Clean</div>'}`;
+    }
+  }
+  return `<button class="${cls.join(' ')}" data-room="${r.id}">${inner}</button>`;
+}
+function renderMap() {
+  let html = '';
+  for (const a of AREAS) {
+    if (a.hidden && !S.surge) continue;
+    const rooms = a.rooms.map(R);
+    const occ = rooms.filter(r => r.pt).length;
+    const ready = rooms.filter(r => r.state === 'clean' && !r.pt && !r.rsv && !(r.closedUntil > S.t)).length;
+    let note = a.hint;
+    if (a.id === 'fast' && modOn('ftAcute')) note = 'Converted to acute (surge)';
+    let body;
+    if (a.pod) {
+      const ord = [0, 1, 2, 7, -1, 3, 6, 5, 4];
+      body = `<div class="pod">${ord.map(i => i < 0 ? `<div class="station"><div><b>${a.name.replace('Pod ', 'Station ')}</b>RN · Tech · MD</div></div>` : tile(rooms[i])).join('')}</div>`;
+    } else body = `<div class="rooms">${rooms.map(tile).join('')}</div>`;
+    html += `<div class="area ${a.id === 'surge' ? 'surgeOn' : ''}" data-a="${a.id}"><h2>${a.name} <span class="count">${occ}/${rooms.length}</span><span class="hint">${ready ? `<b style="color:#5fd59a">${ready} ready</b> · ` : ''}${note}</span></h2>${body}</div>`;
+  }
+  $('#map').innerHTML = html;
+}
+function renderInfo() {
+  const docs = S.docs.map(d => {
+    const on = onDuty(d), p = d.pt && P(d.pt);
+    const what = !on ? (S.t < d.start ? `starts ${fmtClock(d.start)}` : 'off') : p ? `${d.task === 'eval' ? 'evaluating' : 'dispo'} ${name(p)}${p.room ? ' · ' + p.room : ''} (${d.busy}m)` : 'available';
+    return `<div class="s ${on ? '' : 'off'}"><b>${esc(d.name)}</b><span>${esc(what)}</span></div>`;
+  }).join('');
+  const cleaning = Object.values(S.rooms).filter(r => r.state === 'cleaning');
+  const evs = `<div class="s"><b>EVS · ${evsCrews()} crew${evsCrews() > 1 ? 's' : ''}</b><span>${cleaning.map(r => `${r.id} ${r.timer}m`).join(', ') || 'idle'}${S.evsQ.length ? ' · queue: ' + S.evsQ.join(', ') : ''}</span></div>`;
+  const mods = [];
+  if (modOn('diversion')) mods.push('Ambulance diversion');
+  if (modOn('ftAcute')) mods.push('Fast track = acute');
+  if (modOn('testAdd') || modOn('testAddLow')) mods.push('Lab delays');
+  if (modOn('ctAdd')) mods.push('CT delays');
+  if (modOn('bedMult')) mods.push('Electives cancelled');
+  if (modOn('evalMult')) mods.push('Short-staffed');
+  $('#staff').innerHTML = docs + evs + (mods.length ? `<div class="s"><b>Active</b><span>${mods.join(' · ')}</span></div>` : '');
+  $('#log').innerHTML = S.log.slice(0, 60).map(l => `<div class="${l.kind}"><time>${fmtClock(l.t)}</time>${esc(l.msg)}</div>`).join('');
+}
+function renderSel() {
+  const bar = $('#selbar'), p = S.sel && P(S.sel);
+  document.body.classList.toggle('has-sel', !!p);
+  if (!p) { bar.classList.remove('on'); bar.innerHTML = ''; return; }
+  bar.classList.add('on');
+  const where = p.loc === 'room' ? `in ${p.room}` : {waiting:'in the waiting room', ems:'on an EMS stretcher', incoming:`EMS inbound, ETA ${p.eta - S.t}m`, results:'in results waiting'}[p.loc];
+  let hint = '';
+  if (p.loc === 'incoming') hint = p.rsv ? `Reserved ${p.rsv}. Tap another room to change it.` : 'Tap a ready room to pre-assign it for arrival.';
+  else if (p.loc === 'room') hint = 'Tap a ready room to move this patient. The old room will need cleaning.';
+  else hint = 'Tap a highlighted ready room to place this patient.';
+  const needs = [];
+  if (p.esi === 1) needs.push('needs a resus bay now');
+  else if (p.esi === 2 && !p.psych && !['dc', 'admit', 'transport'].includes(p.phase)) needs.push('needs a monitored bed');
+  if (p.psych) needs.push('safe room or sitter');
+  if (p.peds) needs.push('pediatric area');
+  if (p.phase === 'obs') needs.push('obs unit bed');
+  const acts = [];
+  if (p.loc === 'room') acts.push(`<button class="btn" data-act="toResults" ${canResultsWait(p) ? '' : 'disabled title="Only seen, stable ESI 3–5 adults can wait in chairs"'}>To results waiting</button>`);
+  if (p.loc === 'ems') acts.push(`<button class="btn" data-act="toWaiting" ${p.esi >= 3 && !p.psych ? '' : 'disabled title="Too sick for the waiting room"'}>Triage to waiting room</button>`);
+  if (p.loc === 'incoming' && p.rsv) acts.push(`<button class="btn" data-act="unreserve">Release ${p.rsv}</button>`);
+  acts.push(`<button class="btn ghost" data-act="deselect">Done</button>`);
+  const [st] = status(p);
+  bar.innerHTML = `<div class="selin">
+    <div class="selpt"><span class="esi e${p.esi}" style="width:28px;height:28px;font-size:15px">${p.esi}</span><div class="t"><b>${esc(p.first + ' ' + p.last)} · ${p.ageLabel} ${flags(p)}</b><span>${esc(p.cc)} · ${esc(where)}${p.loc !== 'incoming' ? ' · ' + esc(st) : ''}</span></div></div>
+    <div class="selhint">${esc(hint)}${needs.length ? `<br><span class="w">Needs: ${esc(needs.join(', '))}</span>` : ''}</div>
+    <div class="selacts">${acts.join('')}</div></div>`;
+}
+function render() {
+  if (!S) return;
+  renderTop(); renderSide(); renderMap(); renderInfo(); renderSel();
+}
+
+/* ================= interaction ================= */
+const narrow = () => innerWidth <= 820;
+function select(id) {
+  S.sel = S.sel === id ? null : id; render();
+  const p = S.sel && P(S.sel);
+  if (p && narrow() && p.loc !== 'room') {
+    const t = document.querySelector('.room.fit-good') || document.querySelector('.room.fit-fair') || document.querySelector('.room.fit-poor');
+    if (t) t.scrollIntoView({block:'center', behavior:'smooth'});
+  }
+}
+function roomClick(id) {
+  if (S.ended) return;
+  const r = R(id), sel = S.sel && P(S.sel);
+  if (r.state === 'dirty') { requestEVS(r); render(); return; }
+  if (r.state === 'cleaning') { toast(`${r.id} is being cleaned — ready in ${r.timer} min`); return; }
+  if (r.pt) { select(r.pt); return; }
+  if (r.rsv && (!sel || sel.id !== r.rsv)) { select(r.rsv); return; }
+  if (!sel) { toast('Pick a patient first (waiting room, stretcher, or a room), then tap a ready room.'); return; }
+  if (sel.room === r.id) return;
+  if (sel.phase === 'inObs') { toast(`${name(sel)} is in observation — they'll leave from the obs unit`, 'warn'); return; }
+  const f = fit(sel, r);
+  if (f.lvl === 'no') { toast(f.why, 'warn'); return; }
+  if (sel.loc === 'incoming') {
+    if (sel.rsv && R(sel.rsv)) R(sel.rsv).rsv = null;
+    if (r.rsv) { const q = P(r.rsv); if (q) q.rsv = null; }
+    r.rsv = sel.id; sel.rsv = r.id;
+    log(`${r.id} reserved for incoming EMS ${name(sel)}`, 'info');
+    if (f.lvl === 'poor') toast(`Reserved, but: ${f.why}`, 'warn');
+    S.sel = null; render();
+    if (narrow()) $('#side').scrollIntoView({block:'start', behavior:'smooth'});
+    return;
+  }
+  const fromQueue = sel.loc !== 'room';
+  const from = sel.loc === 'room' ? sel.room : sel.loc === 'ems' ? 'EMS stretcher' : sel.loc === 'results' ? 'results waiting' : 'waiting room';
+  placeInRoom(sel, r);
+  log(`${name(sel)} → ${r.id} (from ${from})`, 'info');
+  if (f.lvl === 'poor') toast(`⚠ ${r.id}: ${f.why}`, 'bad');
+  else if (f.lvl === 'fair' && f.why) toast(`${r.id}: ${f.why}`, 'warn');
+  S.sel = null; render();
+  if (narrow() && fromQueue) $('#side').scrollIntoView({block:'start', behavior:'smooth'});
+}
+function action(a) {
+  const p = S.sel && P(S.sel);
+  switch (a) {
+    case 'help': showHelp(); return;
+    case 'newshift': showStart(); return;
+    case 'deselect': S.sel = null; break;
+    case 'toResults': if (p && canResultsWait(p)) { const from = p.room; vacate(p); p.loc = 'results'; log(`${name(p)} moved from ${from} to results waiting`, 'info'); S.sel = null; } break;
+    case 'toWaiting': if (p && p.loc === 'ems' && p.esi >= 3 && !p.psych) { p.loc = 'waiting'; log(`${name(p)} triaged off the stretcher to the waiting room`, 'info'); S.sel = null; } break;
+    case 'unreserve': if (p && p.rsv) { R(p.rsv).rsv = null; p.rsv = null; } break;
+  }
+  render();
+}
+document.addEventListener('click', e => {
+  if (!S || e.target.closest('#modal')) return;
+  const sp = e.target.closest('[data-speed]'); if (sp) { if (!S.ended && !S.modal) setSpeed(+sp.dataset.speed); return; }
+  const ac = e.target.closest('[data-act]'); if (ac) { action(ac.dataset.act); return; }
+  const pt = e.target.closest('[data-pt]'); if (pt) { select(+pt.dataset.pt); return; }
+  const rm = e.target.closest('[data-room]'); if (rm) { roomClick(rm.dataset.room); return; }
+  const z = e.target.closest('[data-zone]');
+  if (z && S.sel) { const p = P(S.sel); if (z.dataset.zone === 'results' && p && canResultsWait(p)) action('toResults'); else if (z.dataset.zone === 'waiting' && p && p.loc === 'ems') action('toWaiting'); }
+});
+document.addEventListener('keydown', e => {
+  if (!S || S.modal || S.ended) { if (e.key === 'Escape' && S && S.modal && !S.ended && helpOpen) closeHelp(); return; }
+  if (e.key === ' ') { e.preventDefault(); setSpeed(S.speed ? 0 : (S.lastSpeed || 1)); }
+  else if (e.key === '1') setSpeed(1); else if (e.key === '2') setSpeed(2); else if (e.key === '3') setSpeed(4);
+  else if (e.key === 'Escape') { S.sel = null; render(); }
+});
+function setSpeed(v) { if (!S) return; if (S.speed) S.lastSpeed = S.speed; S.speed = v; renderTop(); }
+
+/* ================= loop ================= */
+let last = performance.now();
+const MIN_PER_SEC = 1; // game minutes per real second at 1×
+function frame(now) {
+  const dt = Math.min(0.25, (now - last) / 1000); last = now;
+  if (S && S.speed && !S.modal && !S.ended) {
+    S.acc += dt * S.speed * MIN_PER_SEC;
+    let ticked = false;
+    while (S.acc >= 1 && !S.modal && !S.ended) { S.acc -= 1; tick(); ticked = true; }
+    if (ticked) render();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= start / help ================= */
+let helpOpen = false, helpResume = 0;
+const HOW = `<ol class="how">
+  <li><b>Tap a patient</b> (waiting room, EMS stretcher, incoming ambulance, or a room), then <b>tap a ready room</b>. Rooms light up <span style="color:#7fe8ad">green</span> (good fit), <span style="color:#ffc56b">amber</span> (OK) or <span style="color:#ff8f92">red</span> (risky).</li>
+  <li><b>Dirty rooms</b> need EVS: tap to call a crew; tap again to bump it to STAT. Crews are limited.</li>
+  <li>Doctors see, test and decide on their own. When they <b>discharge</b> or <b>admit</b>, you keep space moving: send stable seen patients to <b>results waiting</b>, move <b>OBS</b> patients to the Observation Unit, and pre-assign rooms for <b>incoming EMS</b>.</li>
+  <li>Long waits cause walkouts and deterioration. ESI 1–2 in unmonitored spaces, psych patients outside safe rooms, and adults in peds all carry risk.</li>
+</ol>
+<div class="legend">Acuity (ESI): <span class="esi e1">1</span>critical <span class="esi e2">2</span>emergent <span class="esi e3">3</span>urgent <span class="esi e4">4</span>less urgent <span class="esi e5">5</span>minor</div>
+<div class="legend">Visit bar: roomed → seen → results → dispo → leaving · <span class="flag ems">EMS</span><span class="flag peds">PEDS</span><span class="flag bh">BH</span><span class="flag tr">TRA</span> · Space = pause · 1/2/3 = speed</div>`;
+function showStart() {
+  let diff = 'typical';
+  if (S) S.speed = 0;
+  const best = (() => { try { return JSON.parse(localStorage.getItem('bedboard-best') || 'null'); } catch (e) { return null; } })();
+  showModal(`<div class="card wide"><div class="tag">Emergency Department · Day Shift 07:00–19:00</div>
+    <h3>You're the bed manager.</h3>
+    <p>34 spaces, a full waiting room, and ambulances on the radio. Get every patient into the right space, keep the rooms turning, and hand off a safe department at 19:00.</p>
+    <div class="diffs">${Object.entries(DIFFS).map(([k, d]) => `<button class="opt ${k === diff ? 'on' : ''}" data-d="${k}"><b>${d.name}</b><span>${d.desc}</span></button>`).join('')}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span style="color:var(--muted);font-size:12px">${best ? `Best shift: ${best.grade} (${best.total})` : 'A 12-hour shift takes about 12 minutes at 1×.'}</span><button class="btn pri" id="go">Start shift</button></div>
+    <details style="margin-top:12px" ${innerWidth > 820 ? 'open' : ''}><summary style="cursor:pointer;color:var(--accent);font-weight:600;margin-bottom:6px">How to play</summary>${HOW}</details></div>`,
+    el => {
+      el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { diff = b.dataset.d; el.querySelectorAll('[data-d]').forEach(x => x.classList.toggle('on', x === b)); });
+      el.querySelector('#go').onclick = () => { newGame(diff); hideModal(); S.speed = 1; render(); toast('Shift started. Start with the EMS stretcher and the dirty rooms.', 'info'); };
+    });
+}
+function showHelp() {
+  if (S.ended) return;
+  helpOpen = true; helpResume = S.speed; setSpeed(0);
+  showModal(`<div class="card wide"><div class="tag">How to play</div><h3>Bed management basics</h3>${HOW}
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn pri" id="closeHelp">Back to the board</button></div></div>`,
+    el => el.querySelector('#closeHelp').onclick = closeHelp);
+}
+function closeHelp() { helpOpen = false; hideModal(); setSpeed(helpResume || 1); render(); }
+
+// boot: draw a sample board behind the start card
+newGame('typical'); render(); showStart();
+window.__bb = {get S() { return S; }, tick, newGame, render, fit, placeInRoom, requestEVS, scoreCard, endShift, R, P};
+</script>
+</body>
+</html>
